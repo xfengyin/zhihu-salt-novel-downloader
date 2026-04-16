@@ -1,0 +1,71 @@
+# 知乎盐选小说下载器配置文件
+
+# 下载设置
+download:
+  # 最大并发数
+  max_concurrent: 3
+  # 每秒请求数限制
+  rate_limit: 2.0
+  # 最大重试次数
+  max_retries: 3
+  # 重试延迟（秒）
+  retry_delay: 1.0
+  # 请求超时（秒）
+  timeout: 30
+
+# 缓存设置
+cache:
+  # 是否启用缓存
+  enabled: true
+  # 缓存有效期（秒），默认1小时
+  ttl: 3600
+  # 缓存目录
+  cache_dir: "./cache"
+
+# 输出设置
+output:
+  # 输出目录
+  output_dir: "./output"
+  # 默认导出格式: txt, md, epub, all
+  default_format: "md"
+  # 是否按文章创建子目录
+  create_subdir: true
+
+# 内容清洗设置
+content:
+  # 是否清理内容
+  clean_content: true
+  # 是否移除广告
+  remove_ads: true
+  # 是否移除水印
+  remove_watermarks: true
+  # 自定义广告正则规则
+  custom_ad_patterns: []
+  # 自定义水印正则规则
+  custom_watermark_patterns: []
+
+# 认证设置
+auth:
+  # Cookie文件路径
+  cookie_file: null
+  # z_c0 token（优先级高于cookie_file）
+  z_c0_token: null
+
+# 章节分类规则
+classifier:
+  # 番外关键词
+  extra_keywords:
+    - 番外
+    - 外传
+    - 特别篇
+    - 剧场版
+    - 特典
+    - 附录
+  # 作者说关键词
+  author_note_keywords:
+    - 作者说
+    - 作者的话
+    - 作者留言
+    - 作者注
+    - 彩蛋
+    - 花絮
