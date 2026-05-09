@@ -4,12 +4,13 @@
 import sys
 import asyncio
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any, List, Tuple
+import logging
 
 import click
 
 from core.downloader import AsyncDownloader
-from parsers.article_parser import ArticleParser
+from parsers.article_parser import ArticleParser, Chapter
 from parsers.chapter_classifier import ChapterClassifier
 from exporters.txt_exporter import TxtExporter
 from exporters.md_exporter import MarkdownExporter
@@ -18,11 +19,12 @@ from auth.cookie_manager import CookieManager
 from utils.config import Config
 from utils.checkpoint import CheckpointManager
 from utils.content_cleaner import ContentCleaner
+from utils.exceptions import DownloaderError, RateLimitError, AuthenticationError
 
 
 class_colors = {
     'normal': 'cyan',
-    'extra': 'yellow', 
+    'extra': 'yellow',
     'author_note': 'magenta',
     'unknown': 'white'
 }
@@ -74,19 +76,17 @@ async def _async_main(
     no_clean: bool,
     resume: bool
 ):
-    """异步主函数"""
-    
+    """异步主函数 - 支持真正的并发下载"""
+
     click.echo("📚 知乎盐选小说下载器")
     click.echo("=" * 50)
-    
-    # 加载配置
+
     cfg = Config(config) if config else Config()
     cfg.set('max_concurrent', max_concurrent)
     cfg.set('rate_limit', rate_limit)
     cfg.set('output_dir', output_dir)
     cfg.set('clean_content', not no_clean)
-    
-    # 初始化Cookie管理器
+
     cookie_mgr = CookieManager()
     if cookie_file:
         cookie_mgr.load_from_file(cookie_file)
@@ -94,99 +94,132 @@ async def _async_main(
         cookie_mgr.set_token(token)
     else:
         click.echo("⚠️  未提供认证信息，仅能访问公开内容")
-    
+
     cookies = cookie_mgr.get_cookies()
-    
-    # 初始化下载器
+
     downloader = AsyncDownloader(
         max_concurrent=max_concurrent,
         rate_limit=rate_limit,
-        cookies=cookies
+        cookies=cookies,
+        max_retries=cfg.get('download.max_retries', 3),
+        retry_delay=cfg.get('download.retry_delay', 1.0),
+        timeout=cfg.get('download.timeout', 30)
     )
-    
+
     try:
-        # 解析文章URL
         click.echo(f"\n🔍 正在获取内容: {url}")
-        
+
         html = await downloader.fetch(url)
         parser = ArticleParser()
         article_info = parser.parse_article_info(html)
-        
+
         click.echo(f"\n📖 《{article_info['title']}》")
         click.echo(f"   作者: {article_info.get('author', '未知')}")
         click.echo(f"   章节数: {len(article_info.get('chapters', []))}")
-        
+
         if list_only:
             _print_chapters(article_info['chapters'])
             return
-        
-        # 断点续传
+
         checkpoint_mgr = CheckpointManager(output_dir, article_info['title'])
-        downloaded_ids = set()
-        
+        downloaded_ids: set = set()
+
         if resume:
             checkpoint_file = checkpoint_mgr.get_checkpoint_file()
             if checkpoint_file.exists():
                 downloaded_ids = checkpoint_mgr.load_checkpoint()
                 click.echo(f"\n📍 断点续传: 已下载 {len(downloaded_ids)} 章节")
-        
-        # 过滤未下载章节
+
         chapters_to_download = [
             ch for ch in article_info['chapters']
-            if ch['id'] not in downloaded_ids
+            if (getattr(ch, 'id', None) or str(ch.get('id', ''))) not in downloaded_ids
         ]
-        
+
         if not chapters_to_download:
             click.echo("\n✅ 所有章节已下载完成！")
         else:
-            click.echo(f"\n📥 开始下载 {len(chapters_to_download)} 个章节...")
-            
-            # 清理器
+            click.echo(f"\n📥 开始下载 {len(chapters_to_download)} 个章节（并发数: {max_concurrent}）...")
+
             cleaner = ContentCleaner() if cfg.get('clean_content') else None
-            
-            # 分类器
             classifier = ChapterClassifier()
-            
-            # 下载章节内容
-            for i, chapter in enumerate(chapters_to_download, 1):
-                chapter_url = chapter['url']
-                click.echo(f"  [{i}/{len(chapters_to_download)}] {chapter['title']}...", nl=False)
-                
-                try:
-                    chapter_html = await downloader.fetch(chapter_url)
-                    chapter_content = parser.parse_chapter_content(chapter_html)
-                    
-                    # 内容清洗
-                    if cleaner:
-                        chapter_content = cleaner.clean(chapter_content)
-                    
-                    # 章节分类
-                    chapter_type = classifier.classify(chapter['title'])
-                    chapter['type'] = chapter_type
-                    chapter['content'] = chapter_content
-                    
-                    # 记录断点
-                    downloaded_ids.add(chapter['id'])
+
+            semaphore = asyncio.Semaphore(max_concurrent)
+
+            async def download_chapter(chapter: Chapter, index: int, total: int) -> Tuple[Chapter, Optional[str]]:
+                async with semaphore:
+                    chapter_url = getattr(chapter, 'url', None) or chapter.get('url', '')
+                    chapter_title = getattr(chapter, 'title', None) or chapter.get('title', '未知章节')
+                    chapter_id = getattr(chapter, 'id', None) or chapter.get('id', '')
+
+                    click.echo(f"  [{index}/{total}] {chapter_title}...", nl=False)
+
+                    try:
+                        chapter_html = await downloader.fetch_with_retry(chapter_url)
+                        chapter_content = parser.parse_chapter_content(chapter_html)
+
+                        if cleaner:
+                            chapter_content = cleaner.clean(chapter_content)
+
+                        chapter_type = classifier.classify(chapter_title)
+                        chapter_type_str = chapter_type if isinstance(chapter_type, str) else 'normal'
+
+                        if hasattr(chapter, 'type'):
+                            chapter.type = chapter_type_str
+                        else:
+                            chapter['type'] = chapter_type_str
+
+                        if hasattr(chapter, 'content'):
+                            chapter.content = chapter_content
+                        else:
+                            chapter['content'] = chapter_content
+
+                        click.echo(" ✓")
+                        return (chapter, None)
+
+                    except RateLimitError as e:
+                        click.echo(f" ⚠️ 速率限制 ({e})")
+                        return (chapter, str(e))
+                    except AuthenticationError as e:
+                        click.echo(f" 🔐 认证失败 ({e})")
+                        return (chapter, str(e))
+                    except Exception as e:
+                        click.echo(f" ✗ ({e})")
+                        return (chapter, str(e))
+
+            tasks = [
+                download_chapter(ch, i, len(chapters_to_download))
+                for i, ch in enumerate(chapters_to_download, 1)
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for result in results:
+                if isinstance(result, Exception):
+                    logging.error(f"下载任务异常: {result}")
+                    continue
+
+                chapter, error = result
+                chapter_id = getattr(chapter, 'id', None) or chapter.get('id', '')
+
+                if chapter_id:
+                    downloaded_ids.add(chapter_id)
                     if resume:
                         checkpoint_mgr.save_checkpoint(downloaded_ids)
-                    
-                    click.echo(" ✓")
-                    
-                except Exception as e:
-                    click.echo(f" ✗ ({e})")
-            
-            click.echo(f"\n✅ 下载完成！共 {len(downloaded_ids)} 章节")
-        
-        # 导出文件
+
+            success_count = sum(1 for _, err in results if err is None and not isinstance(err, Exception))
+            fail_count = len(chapters_to_download) - success_count
+
+            click.echo(f"\n✅ 下载完成！成功: {success_count}, 失败: {fail_count}")
+
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
-        
+
         exporters = {
             'txt': TxtExporter(output_path),
             'md': MarkdownExporter(output_path),
             'epub': EpubExporter(output_path)
         }
-        
+
         if export_format == 'all':
             for fmt, exporter in exporters.items():
                 click.echo(f"\n📦 导出 {fmt.upper()}...", nl=False)
@@ -196,30 +229,35 @@ async def _async_main(
             click.echo(f"\n📦 导出 {export_format.upper()}...", nl=False)
             exporters[export_format].export(article_info)
             click.echo(" ✓")
-        
+
         click.echo(f"\n🎉 完成！文件保存在: {output_path.absolute()}")
-        
+
+        cache_stats = downloader.get_cache_stats()
+        if cache_stats.get('total_requests', 0) > 0:
+            click.echo(f"\n📊 缓存统计: {cache_stats}")
+
     finally:
         await downloader.close()
 
 
-def _print_chapters(chapters: list):
+def _print_chapters(chapters: List) -> None:
     """打印章节列表"""
     click.echo("\n📑 章节列表:")
     click.echo("-" * 50)
-    
+
     classifier = ChapterClassifier()
-    
+
     for ch in chapters:
-        ch_type = classifier.classify(ch['title'])
+        title = getattr(ch, 'title', None) or ch.get('title', '未知章节')
+        ch_type = classifier.classify(title)
         type_label = {
             'normal': '正文',
             'extra': '番外',
             'author_note': '作者说',
             'unknown': '其他'
         }.get(ch_type, '其他')
-        
-        click.echo(f"  [{type_label}] {ch['title']}")
+
+        click.echo(f"  [{type_label}] {title}")
 
 
 if __name__ == '__main__':

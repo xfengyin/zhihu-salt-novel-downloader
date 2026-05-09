@@ -151,14 +151,6 @@ class EpubExporter(BaseExporter):
         book.add_item(epub.EpubNcx())
         book.add_item(epub.EpubNav())
         
-        # 添加默认NCX和Nav文件
-        nav_file = epub.EpubNav(
-            uid='nav',
-            file_name='nav.xhtml',
-            lang='zh-CN'
-        )
-        book.add_item(nav_file)
-        
         # 写入文件
         epub.write_epub(str(output_path), book, {})
         

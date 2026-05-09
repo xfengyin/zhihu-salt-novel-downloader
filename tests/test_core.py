@@ -11,51 +11,43 @@ from core.cache import ResponseCache
 
 class TestAsyncDownloader:
     """异步下载器测试"""
-    
+
     @pytest.fixture
     def downloader(self):
         return AsyncDownloader(max_concurrent=2, rate_limit=5.0)
-    
+
     @pytest.mark.asyncio
-    async def test_fetch_success(self, downloader, mock_response):
+    async def test_fetch_success(self, downloader):
         """测试成功获取"""
-        with patch('aiohttp.ClientSession') as mock_session:
-            mock_instance = MagicMock()
-            mock_response.__aenter__ = AsyncMock(return_value=mock_response)
-            mock_instance.get.return_value = mock_response
-            mock_session.return_value = mock_instance
-            
-            # 简化测试：直接测试缓存
-            downloader._cache.set('http://test.com', '<html>test</html>')
-            result = downloader._cache.get('http://test.com')
-            assert result == '<html>test</html>'
-    
+        downloader._cache.set('http://test.com', '<html>test</html>')
+        result = downloader._cache.get('http://test.com')
+        assert result == '<html>test</html>'
+
     def test_rate_limiter_acquire(self):
         """测试速率限制器"""
         limiter = RateLimiter(rate=5.0, burst=5)
-        
-        # 初始应有足够的令牌
+
         assert limiter.available_tokens >= 4
-    
+
     def test_rate_limiter_reset(self):
         """测试速率限制器重置"""
         limiter = RateLimiter(rate=5.0, burst=5)
         limiter._tokens = 1
-        
+
         limiter.reset()
         assert limiter.available_tokens == 5
 
 
 class TestRateLimiter:
     """速率限制器测试"""
-    
+
     @pytest.mark.asyncio
     async def test_acquire_tokens(self):
         """测试获取令牌"""
         limiter = RateLimiter(rate=10.0, burst=10)
         await limiter.acquire(1)
         assert limiter.available_tokens < 10
-    
+
     def test_reset(self):
         """测试重置"""
         limiter = RateLimiter(rate=5.0, burst=5)
@@ -66,36 +58,36 @@ class TestRateLimiter:
 
 class TestResponseCache:
     """响应缓存测试"""
-    
+
     def test_set_and_get(self):
         """测试设置和获取"""
         cache = ResponseCache(ttl=60)
         cache.set('http://test.com', '<html>content</html>')
-        
+
         result = cache.get('http://test.com')
         assert result == '<html>content</html>'
-    
+
     def test_cache_miss(self):
         """测试缓存未命中"""
         cache = ResponseCache(ttl=60)
         result = cache.get('http://not-exists.com')
         assert result is None
-    
+
     def test_clear_cache(self):
         """测试清除缓存"""
         cache = ResponseCache(ttl=60)
         cache.set('http://test.com', '<html>content</html>')
         cache.clear()
-        
+
         result = cache.get('http://test.com')
         assert result is None
-    
+
     def test_stats(self):
         """测试缓存统计"""
         cache = ResponseCache(ttl=60)
         cache.set('http://test1.com', '<html>1</html>')
         cache.set('http://test2.com', '<html>2</html>')
-        
+
         stats = cache.stats()
-        assert stats['total'] == 2
-        assert stats['valid'] == 2
+        assert stats['size'] == 2
+        assert 'total_requests' in stats

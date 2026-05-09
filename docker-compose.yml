@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  zhihu-downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zhihu-downloader
+    volumes:
+      - ./output:/app/output
+      - ./cache:/app/cache
+      - ./cookies:/app/cookies:ro
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    command: >
+      --url "${ARTICLE_URL}"
+      --cookie-file /app/cookies/cookies.json
+      --output-dir /app/output
+      --format md
+      --max-concurrent 3
+      --rate-limit 2
+      --resume
