@@ -4,9 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -48,6 +46,7 @@ web/node_modules/
 .web/
 dist/
 build/
+*.spec
 
 # Logs
 *.log
@@ -59,7 +58,7 @@ yarn-error.log*
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
-*.lock
+uv.lock
 
 # Environment
 .env
@@ -75,6 +74,19 @@ output/
 *.epub
 *.txt
 *.md
+*.mobi
 
 # uv
 .uv/
+
+# Shelf
+shelf.json
+
+# PyInstaller
+*.pyc
+*.pyo
+*.pyd
+*.dll
+*.exe
+*.dylib
+*.so

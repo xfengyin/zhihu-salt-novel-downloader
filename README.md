@@ -7,12 +7,17 @@
 - **异步下载**: `asyncio + aiohttp` 实现高效并发下载
 - **速率控制**: 令牌桶算法，避免触发反爬
 - **断点续传**: 记录下载进度，支持中断后继续
-- **多格式导出**: 支持 `.txt`、`.md`、`.epub` 三种格式
+- **多格式导出**: 支持 `.txt`、`.md`、`.epub`、`.mobi` 四种格式
 - **智能分类**: 自动识别正文、番外、作者说
 - **内容清洗**: 自动移除广告、水印、推广语
 - **认证支持**: 支持 Cookie/z_c0 token 认证
 - **User-Agent 轮换**: 模拟移动端请求
 - **Web界面**: 提供现代化的 Web UI
+- **批量下载**: 支持从文件读取多个URL批量下载
+- **更新检测**: 自动检测章节更新，增量下载
+- **书架管理**: 本地书架，管理已下载书籍
+- **Cookie自动读取**: 自动从浏览器获取Cookie，免手动导出
+- **一键打包**: 支持打包为 Windows exe 和 macOS dmg
 
 ## 技术栈
 
@@ -37,6 +42,7 @@
 - **uv**: 现代化 Python 包管理器
 - **ruff**: 代码检查与格式化
 - **pytest**: 单元测试
+- **pyinstaller**: 打包工具
 
 ## 快速开始
 
@@ -100,7 +106,23 @@ yarn install
 ```bash
 # 运行 CLI
 uv run zhihu-download --help
-uv run zhihu-download --url <URL> --format md
+
+# 下载小说
+uv run zhihu-download download --url <URL> --format md
+
+# 批量下载（从文件读取URL列表）
+uv run zhihu-download download --batch-file urls.txt
+
+# 自动读取浏览器Cookie
+uv run zhihu-download download --url <URL> --auto-cookie
+
+# 检查章节更新
+uv run zhihu-download download --url <URL> --update-check
+
+# 书架管理
+uv run zhihu-download shelf --list
+uv run zhihu-download shelf --add <URL>
+uv run zhihu-download shelf --update-all
 
 # 运行测试
 uv run pytest tests/ -v
@@ -108,9 +130,6 @@ uv run pytest tests/ -v
 # 代码格式化
 uv run ruff check --fix .
 uv run black .
-
-# 类型检查
-uv run mypy src/
 
 # 运行 FastAPI 服务（Web 模式）
 uv run uvicorn src.zhihu_downloader.api:app --reload --port 8000
@@ -135,6 +154,34 @@ npm run preview
 npm run lint
 ```
 
+## 打包为可执行文件
+
+### Linux / macOS
+
+```bash
+# 安装打包依赖
+uv sync --extra build
+
+# 运行打包脚本
+bash build_linux.sh
+
+# 生成的可执行文件在 dist/ 目录
+./dist/zhihu-downloader --help
+```
+
+### Windows
+
+```batch
+@rem 安装打包依赖
+uv sync --extra build
+
+@rem 运行打包脚本
+build_windows.bat
+
+@rem 生成的可执行文件在 dist\ 目录
+dist\zhihu-downloader.exe --help
+```
+
 ## 项目结构
 
 ```
@@ -151,31 +198,41 @@ zhihu-salt-novel-downloader/
 │   │   ├── base_exporter.py
 │   │   ├── txt_exporter.py
 │   │   ├── md_exporter.py
-│   │   └── epub_exporter.py
+│   │   ├── epub_exporter.py
+│   │   └── mobi_exporter.py
 │   ├── auth/                 # 认证模块
-│   │   └── cookie_manager.py
+│   │   ├── cookie_manager.py
+│   │   └── browser_cookie.py
+│   ├── shelf/                # 书架管理
+│   │   └── shelf_manager.py
 │   ├── utils/                # 工具类
 │   │   ├── config.py
 │   │   ├── checkpoint.py
 │   │   └── content_cleaner.py
 │   └── cli.py                # CLI 入口
 ├── web/                      # 前端源码
-│   ├── src/
-│   │   ├── components/       # React 组件
-│   │   │   └── ui/           # shadcn/ui 组件
-│   │   ├── lib/              # 工具函数
-│   │   └── types/            # TypeScript 类型
-│   └── ...
+│   └── src/
+│       ├── components/       # React 组件
+│       └── lib/              # 工具函数
 ├── tests/                    # 测试用例
+├── pyinstaller.spec          # PyInstaller 配置
+├── build_linux.sh            # Linux 打包脚本
+├── build_windows.bat         # Windows 打包脚本
 ├── pyproject.toml            # Python 项目配置
 ├── uv.lock                   # 依赖锁定文件
-└── DESIGN.md                 # 设计规范文档
+└── README.md                 # 使用文档
 ```
 
 ## 使用方法
 
-### 1. 获取认证 Cookie
+### 1. 获取认证 Cookie（可选）
 
+#### 方法一：自动读取（推荐）
+```bash
+uv run zhihu-download download --url <URL> --auto-cookie
+```
+
+#### 方法二：手动导出
 使用 Chrome 插件（如 EditThisCookie）导出 Cookie 为 JSON 文件：
 
 ```json
@@ -191,28 +248,27 @@ zhihu-salt-novel-downloader/
 # 查看帮助
 uv run zhihu-download --help
 
-# 列出章节（不下载）
-uv run zhihu-download --url https://www.zhihu.com/market/xxx --list-only
+# 下载单本小说
+uv run zhihu-download download --url https://www.zhihu.com/market/xxx --format md
 
-# 下载为 Markdown
-uv run zhihu-download --url https://www.zhihu.com/market/xxx \
-  --cookie-file=cookies.json \
-  --format=md
+# 批量下载（每行一个URL）
+echo "https://www.zhihu.com/market/book1" > urls.txt
+echo "https://www.zhihu.com/market/book2" >> urls.txt
+uv run zhihu-download download --batch-file urls.txt
 
-# 下载为 EPUB
-uv run zhihu-download --url https://www.zhihu.com/market/xxx \
-  --cookie-file=cookies.json \
-  --format=epub
+# 自动读取Cookie下载
+uv run zhihu-download download --url https://www.zhihu.com/market/xxx --auto-cookie
 
-# 断点续传
-uv run zhihu-download --url https://www.zhihu.com/market/xxx \
-  --cookie-file=cookies.json \
-  --resume
+# 检查章节更新
+uv run zhihu-download download --url https://www.zhihu.com/market/xxx --update-check
 
-# 自定义并发数
-uv run zhihu-download --url https://www.zhihu.com/market/xxx \
-  --max-concurrent=5 \
-  --rate-limit=3
+# 导出为 MOBI 格式
+uv run zhihu-download download --url https://www.zhihu.com/market/xxx --format mobi
+
+# 书架管理
+uv run zhihu-download shelf --list
+uv run zhihu-download shelf --add https://www.zhihu.com/market/xxx
+uv run zhihu-download shelf --update-all
 ```
 
 ### 3. Web 界面使用
@@ -250,7 +306,20 @@ auth:
 然后运行:
 
 ```bash
-uv run zhihu-download --url <URL> --config config.yaml
+uv run zhihu-download download --url <URL> --config config.yaml
+```
+
+## 批量下载文件格式
+
+创建一个文本文件，每行一个URL，支持注释：
+
+```txt
+# 我的书单
+https://www.zhihu.com/market/book/123456789
+https://www.zhihu.com/market/book/987654321
+# 已完成
+# https://www.zhihu.com/market/book/111111111
+https://www.zhihu.com/market/book/222222222
 ```
 
 ## 合规声明
