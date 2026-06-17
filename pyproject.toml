@@ -57,7 +57,7 @@ build = [
 ]
 
 [project.scripts]
-zhihu-download = "zhihu_downloader.cli:main"
+zhihu-download = "zhihu_downloader.cli:cli"
 
 [project.urls]
 Homepage = "https://github.com/xfengyin/zhihu-salt-novel-downloader"

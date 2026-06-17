@@ -276,7 +276,7 @@ uv run zhihu-download shelf --update-all
 ```bash
 # 启动后端 API 服务
 cd zhihu-salt-novel-downloader
-uv run uvicorn src.zhihu_downloader.api:app --reload --port 8000
+uv run python -m zhihu_downloader.api.main
 
 # 启动前端开发服务器
 cd web

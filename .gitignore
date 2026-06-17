@@ -90,3 +90,7 @@ shelf.json
 *.exe
 *.dylib
 *.so
+
+# 前端目录豁免：web/src/lib/ 是源码（非 Python 构建产物），web/.env 是前端配置
+!web/src/lib/
+!web/.env

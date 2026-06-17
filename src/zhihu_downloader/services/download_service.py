@@ -23,7 +23,7 @@ from zhihu_downloader.exporters.epub_exporter import EpubExporter
 from zhihu_downloader.exporters.md_exporter import MarkdownExporter
 from zhihu_downloader.exporters.mobi_exporter import MobiExporter
 from zhihu_downloader.exporters.txt_exporter import TxtExporter
-from zhihu_downloader.parsers.article_parser import ArticleParser
+from zhihu_downloader.parsers.article_parser import ArticleInfo, ArticleParser
 from zhihu_downloader.parsers.chapter_classifier import ChapterClassifier
 from zhihu_downloader.shelf.shelf_manager import ShelfManager
 from zhihu_downloader.utils.checkpoint import CheckpointManager
@@ -352,7 +352,7 @@ class DownloadService:
 
     async def _export(
         self,
-        article_info: Any,
+        article_info: ArticleInfo,
         output_dir: str,
         export_format: str,
     ) -> list[Path]:
@@ -370,11 +370,7 @@ class DownloadService:
             "mobi": MobiExporter(output_path),
         }
 
-        article_dict = (
-            article_info.to_dict()
-            if hasattr(article_info, "to_dict")
-            else article_info
-        )
+        article_dict = article_info.to_dict()
 
         results: list[Path] = []
 
