@@ -188,6 +188,9 @@ ignore = [
     "B008",   # do not perform function calls in argument defaults
     "C901",   # too complex
     "UP007",  # use X | Y for union types (needs Python 3.10+)
+    "RUF001", # ambiguous unicode char (中文标点误报)
+    "RUF002", # ambiguous unicode char in docstring (中文标点误报)
+    "RUF003", # ambiguous unicode char in comment (中文标点误报)
 ]
 
 [tool.ruff.per-file-ignores]

@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, Settings, FileText, BookOpen } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { DownloadPanel } from './components/DownloadPanel'
 import { ConfigPanel } from './components/ConfigPanel'
 import { StatusBar } from './components/StatusBar'
-import type { DownloadConfig, DownloadProgress } from '@/types'
+import type { DownloadConfig, DownloadProgress, ProgressEvent } from '@/types'
+import { startDownload, subscribeDownloadProgress } from '@/lib/api'
 
 function App() {
   const [activeTab, setActiveTab] = useState<'download' | 'config'>('download')
@@ -24,17 +25,109 @@ function App() {
     status: 'idle',
   })
 
+  // 保存当前 SSE 订阅的取消函数，便于重新开始或卸载时释放连接
+  const unsubscribeRef = useRef<(() => void) | null>(null)
+
+  // 组件卸载时取消订阅，避免内存泄漏与僵尸连接
+  useEffect(() => {
+    return () => {
+      unsubscribeRef.current?.()
+      unsubscribeRef.current = null
+    }
+  }, [])
+
   const handleConfigChange = (newConfig: Partial<DownloadConfig>) => {
     setConfig(prev => ({ ...prev, ...newConfig }))
   }
 
-  const handleStartDownload = () => {
+  /**
+   * 处理 SSE 进度事件，按事件类型更新本地进度状态
+   * 使用函数式 setState 保证多次连续事件的状态一致性
+   */
+  const handleProgressEvent = (event: ProgressEvent): void => {
+    switch (event.type) {
+      case 'info':
+        // info 事件主要用于提示性消息，更新 current 展示当前阶段
+        if (event.message) {
+          setProgress(prev => ({ ...prev, current: event.message }))
+        }
+        break
+      case 'progress':
+        setProgress({
+          total: event.total,
+          downloaded: event.downloaded,
+          current: event.current,
+          status: 'downloading',
+        })
+        break
+      case 'export':
+        setProgress(prev => ({
+          ...prev,
+          status: 'exporting',
+          current: event.message,
+        }))
+        break
+      case 'complete':
+        setProgress(prev => ({
+          ...prev,
+          status: 'completed',
+          downloaded: event.total || prev.downloaded,
+          total: event.total || prev.total,
+          current: event.message || prev.current,
+          outputFiles: event.output_files,
+        }))
+        // 任务完成，主动取消订阅释放连接
+        unsubscribeRef.current?.()
+        unsubscribeRef.current = null
+        break
+      case 'error':
+        setProgress(prev => ({
+          ...prev,
+          status: 'error',
+          error: event.message,
+        }))
+        unsubscribeRef.current?.()
+        unsubscribeRef.current = null
+        break
+      default:
+        break
+    }
+  }
+
+  const handleStartDownload = async (): Promise<void> => {
     if (!config.url) return
+
+    // 重新开始前取消已有订阅，避免多个流并发写入状态
+    unsubscribeRef.current?.()
+    unsubscribeRef.current = null
+
     setProgress({
       total: 0,
       downloaded: 0,
       status: 'downloading',
     })
+
+    try {
+      const { task_id } = await startDownload(config)
+      // 订阅 SSE 流，保存取消函数以便后续中断
+      unsubscribeRef.current = subscribeDownloadProgress(
+        task_id,
+        handleProgressEvent,
+        (err: Error) => {
+          setProgress(prev => ({
+            ...prev,
+            status: 'error',
+            error: err.message,
+          }))
+        },
+      )
+    } catch (err) {
+      setProgress(prev => ({
+        ...prev,
+        status: 'error',
+        error: err instanceof Error ? err.message : '启动下载失败',
+      }))
+    }
   }
 
   return (

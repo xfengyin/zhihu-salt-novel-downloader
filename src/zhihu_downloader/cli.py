@@ -1,39 +1,27 @@
-"""知乎盐选小说下载器 - 命令行接口"""
+"""知乎盐选小说下载器 - 命令行接口
+
+职责单一：仅负责参数解析、认证装配与进度事件打印。
+业务编排统一下沉到 services 层，CLI 与 API 共享同一套 Service。
+"""
 
 from __future__ import annotations
 
 import asyncio
 import sys
-from pathlib import Path
-from typing import Optional, List, Any
 
 import click
 
-from zhihu_downloader.core.downloader import AsyncDownloader
-from zhihu_downloader.parsers.article_parser import ArticleParser, ArticleInfo
-from zhihu_downloader.parsers.chapter_classifier import ChapterClassifier
-from zhihu_downloader.exporters.txt_exporter import TxtExporter
-from zhihu_downloader.exporters.md_exporter import MarkdownExporter
-from zhihu_downloader.exporters.epub_exporter import EpubExporter
-from zhihu_downloader.exporters.mobi_exporter import MobiExporter
-from zhihu_downloader.auth.cookie_manager import CookieManager
 from zhihu_downloader.auth.browser_cookie import BrowserCookieFetcher
+from zhihu_downloader.auth.cookie_manager import CookieManager
+from zhihu_downloader.services.download_service import DownloadService
+from zhihu_downloader.services.events import ProgressEvent
+from zhihu_downloader.services.shelf_service import ShelfService
 from zhihu_downloader.utils.config import Config
-from zhihu_downloader.utils.checkpoint import CheckpointManager
-from zhihu_downloader.utils.content_cleaner import ContentCleaner
-from zhihu_downloader.shelf.shelf_manager import ShelfManager
-
-
-class_colors: dict[str, str] = {
-    "normal": "cyan",
-    "extra": "yellow",
-    "author_note": "magenta",
-    "unknown": "white",
-}
 
 
 @click.group(help="知乎盐选小说下载器 - 支持批量下载、书架管理、多格式导出")
 def cli() -> None:
+    """CLI 入口"""
     pass
 
 
@@ -60,17 +48,17 @@ def cli() -> None:
 @click.option("--resume", is_flag=True, help="启用断点续传")
 @click.option("--update-check", is_flag=True, help="检查章节更新")
 def download_command(
-    url: Optional[str],
-    batch_file: Optional[str],
-    cookie_file: Optional[str],
+    url: str | None,
+    batch_file: str | None,
+    cookie_file: str | None,
     auto_cookie: bool,
-    token: Optional[str],
+    token: str | None,
     output_dir: str,
     export_format: str,
     list_only: bool,
     max_concurrent: int,
     rate_limit: float,
-    config: Optional[str],
+    config: str | None,
     no_clean: bool,
     resume: bool,
     update_check: bool,
@@ -80,18 +68,14 @@ def download_command(
         click.echo("❌ 请提供 --url 或 --batch-file 参数")
         sys.exit(1)
 
-    urls: List[str] = []
+    urls: list[str] = []
     if url:
         urls.append(url)
     if batch_file:
-        with open(batch_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    urls.append(line)
+        urls.extend(_read_batch_file(batch_file))
 
     asyncio.run(
-        _async_download(
+        _run_download(
             urls=urls,
             cookie_file=cookie_file,
             auto_cookie=auto_cookie,
@@ -101,7 +85,7 @@ def download_command(
             list_only=list_only,
             max_concurrent=max_concurrent,
             rate_limit=rate_limit,
-            config=config,
+            config_path=config,
             no_clean=no_clean,
             resume=resume,
             update_check=update_check,
@@ -117,74 +101,99 @@ def download_command(
 @click.option("--clean", is_flag=True, help="清理书架缓存")
 def shelf_command(
     list_books: bool,
-    add: Optional[str],
-    remove: Optional[str],
+    add: str | None,
+    remove: str | None,
     update_all: bool,
     clean: bool,
 ) -> None:
     """书架管理命令"""
-    shelf = ShelfManager()
+    shelf_service = ShelfService()
 
     if list_books:
-        books = shelf.list_books()
-        if not books:
-            click.echo("📚 书架为空")
-            return
-        click.echo("📚 我的书架:")
-        click.echo("-" * 50)
-        for book in books:
-            status = "✓" if book.get("completed") else "○"
-            click.echo(f"  {status} {book.get('title', '未知标题')}")
-            click.echo(f"     作者: {book.get('author', '未知作者')}")
-            click.echo(f"     章节: {book.get('chapter_count', 0)}")
-            if book.get("last_update"):
-                click.echo(f"     更新: {book.get('last_update')}")
-
+        _print_shelf(shelf_service)
     elif add:
-        shelf.add_book(add)
-        click.echo(f"✅ 已添加到书架: {add}")
-
+        result = shelf_service.add_book(add)
+        click.echo(f"{'✅' if result['success'] else '❌'} {result['message']}")
     elif remove:
-        shelf.remove_book(remove)
-        click.echo(f"✅ 已从书架移除: {remove}")
-
+        result = shelf_service.remove_book(remove)
+        click.echo(f"{'✅' if result['success'] else '❌'} {result['message']}")
     elif update_all:
-        asyncio.run(_async_update_shelf(shelf))
-
+        asyncio.run(_run_update_shelf(shelf_service))
     elif clean:
-        shelf.clean_cache()
-        click.echo("✅ 已清理书架缓存")
-
+        result = shelf_service.clean_cache()
+        click.echo(f"{'✅' if result['success'] else '❌'} {result['message']}")
     else:
         click.echo("❌ 请提供操作参数 (-l, --add, --remove, --update-all, --clean)")
 
 
-async def _async_download(
-    urls: List[str],
-    cookie_file: Optional[str],
+# ---------------------------------------------------------------------------
+# 下载流程装配
+# ---------------------------------------------------------------------------
+
+
+async def _run_download(
+    urls: list[str],
+    cookie_file: str | None,
     auto_cookie: bool,
-    token: Optional[str],
+    token: str | None,
     output_dir: str,
     export_format: str,
     list_only: bool,
     max_concurrent: int,
     rate_limit: float,
-    config: Optional[str],
+    config_path: str | None,
     no_clean: bool,
     resume: bool,
     update_check: bool,
 ) -> None:
-    """异步下载主函数"""
-
+    """装配认证与配置，驱动 DownloadService 并打印进度"""
     click.echo("📚 知乎盐选小说下载器")
     click.echo("=" * 50)
 
-    cfg = Config(config) if config else Config()
-    cfg.set("max_concurrent", max_concurrent)
-    cfg.set("rate_limit", rate_limit)
-    cfg.set("output_dir", output_dir)
-    cfg.set("clean_content", not no_clean)
+    cfg = Config(config_path) if config_path else Config()
+    # 修复原 cli 的 config 层级错位 bug：统一使用点号 key
+    cfg.set("download.max_concurrent", max_concurrent)
+    cfg.set("download.rate_limit", rate_limit)
+    cfg.set("output.output_dir", output_dir)
+    cfg.set("content.clean_content", not no_clean)
 
+    cookie_mgr = _build_cookie_manager(cookie_file, auto_cookie, token)
+
+    service = DownloadService(config=cfg)
+    async for event in service.download(
+        urls,
+        cookie_manager=cookie_mgr,
+        output_dir=output_dir,
+        export_format=export_format,
+        list_only=list_only,
+        clean_content=not no_clean,
+        resume=resume,
+        update_check=update_check,
+    ):
+        _print_event(event)
+
+
+async def _run_update_shelf(shelf_service: ShelfService) -> None:
+    """驱动书架更新流程"""
+    cookie_mgr = _build_cookie_manager(None, True, None)
+    download_service = DownloadService()
+    async for event in download_service.update_shelf(
+        cookie_manager=cookie_mgr,
+    ):
+        _print_event(event)
+
+
+# ---------------------------------------------------------------------------
+# 认证装配
+# ---------------------------------------------------------------------------
+
+
+def _build_cookie_manager(
+    cookie_file: str | None,
+    auto_cookie: bool,
+    token: str | None,
+) -> CookieManager:
+    """根据参数装配 CookieManager"""
     cookie_mgr = CookieManager()
 
     if auto_cookie:
@@ -206,229 +215,62 @@ async def _async_download(
     elif not auto_cookie:
         click.echo("⚠️  未提供认证信息，仅能访问公开内容")
 
-    cookies = cookie_mgr.get_cookies()
-
-    downloader = AsyncDownloader(
-        max_concurrent=max_concurrent,
-        rate_limit=rate_limit,
-        cookies=cookies,
-    )
-
-    shelf = ShelfManager()
-
-    try:
-        for idx, url in enumerate(urls, 1):
-            click.echo(f"\n{'='*50}")
-            click.echo(f"📖 正在处理 [{idx}/{len(urls)}]: {url}")
-            click.echo(f"{'='*50}")
-
-            await _download_single_book(
-                url=url,
-                downloader=downloader,
-                cfg=cfg,
-                output_dir=output_dir,
-                export_format=export_format,
-                list_only=list_only,
-                resume=resume,
-                update_check=update_check,
-                shelf=shelf,
-            )
-
-    finally:
-        await downloader.close()
+    return cookie_mgr
 
 
-async def _download_single_book(
-    url: str,
-    downloader: AsyncDownloader,
-    cfg: Config,
-    output_dir: str,
-    export_format: str,
-    list_only: bool,
-    resume: bool,
-    update_check: bool,
-    shelf: ShelfManager,
-) -> None:
-    """下载单本书"""
-    try:
-        click.echo(f"\n🔍 正在获取内容: {url}")
-
-        html = await downloader.fetch(url)
-        parser = ArticleParser()
-        article_info = parser.parse_article_info(html)
-
-        click.echo(f"\n📖 《{article_info.title}》")
-        click.echo(f"   作者: {article_info.author}")
-        click.echo(f"   章节数: {article_info.chapter_count}")
-
-        if update_check:
-            existing_info = shelf.get_book(url)
-            if existing_info:
-                existing_chapters = existing_info.get("chapter_count", 0)
-                if article_info.chapter_count > existing_chapters:
-                    new_count = article_info.chapter_count - existing_chapters
-                    click.echo(f"🔄 发现更新！新增 {new_count} 章节")
-                else:
-                    click.echo("✅ 已是最新版本，无需更新")
-                    return
-
-        if list_only:
-            _print_chapters(article_info.chapters)
-            return
-
-        checkpoint_mgr = CheckpointManager(output_dir, article_info.title)
-        downloaded_ids: set[str] = set()
-
-        if resume:
-            checkpoint_file = checkpoint_mgr.get_checkpoint_file()
-            if checkpoint_file.exists():
-                downloaded_ids = checkpoint_mgr.load_checkpoint()
-                click.echo(f"\n📍 断点续传: 已下载 {len(downloaded_ids)} 章节")
-
-        chapters_to_download = [
-            ch for ch in article_info.chapters
-            if ch.id not in downloaded_ids
-        ]
-
-        if not chapters_to_download:
-            click.echo("\n✅ 所有章节已下载完成！")
-        else:
-            click.echo(f"\n📥 开始下载 {len(chapters_to_download)} 个章节...")
-
-            cleaner = ContentCleaner() if cfg.get("clean_content") else None
-            classifier = ChapterClassifier()
-
-            for i, chapter in enumerate(chapters_to_download, 1):
-                chapter_url = chapter.url
-                click.echo(f"  [{i}/{len(chapters_to_download)}] {chapter.title}...", nl=False)
-
-                try:
-                    chapter_html = await downloader.fetch(chapter_url)
-                    chapter_content = parser.parse_chapter_content(chapter_html)
-
-                    if cleaner:
-                        chapter_content = cleaner.clean(chapter_content)
-
-                    chapter_type = classifier.classify(chapter.title)
-                    chapter.type = chapter_type
-                    chapter.content = chapter_content
-
-                    downloaded_ids.add(chapter.id)
-                    if resume:
-                        checkpoint_mgr.save_checkpoint(downloaded_ids)
-
-                    click.echo(" ✓")
-
-                except Exception as e:
-                    click.echo(f" ✗ ({e})")
-
-            click.echo(f"\n✅ 下载完成！共 {len(downloaded_ids)} 章节")
-
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        exporters: dict[str, Any] = {
-            "txt": TxtExporter(output_path),
-            "md": MarkdownExporter(output_path),
-            "epub": EpubExporter(output_path),
-            "mobi": MobiExporter(output_path),
-        }
-
-        if export_format == "all":
-            for fmt, exporter in exporters.items():
-                click.echo(f"\n📦 导出 {fmt.upper()}...", nl=False)
-                exporter.export(article_info.to_dict())
-                click.echo(" ✓")
-        else:
-            click.echo(f"\n📦 导出 {export_format.upper()}...", nl=False)
-            exporters[export_format].export(article_info.to_dict())
-            click.echo(" ✓")
-
-        click.echo(f"\n🎉 完成！文件保存在: {output_path.absolute()}")
-
-        shelf.add_book(url, article_info.to_dict())
-
-    except Exception as e:
-        click.echo(f"\n❌ 下载失败: {e}")
+# ---------------------------------------------------------------------------
+# 进度打印
+# ---------------------------------------------------------------------------
 
 
-async def _async_update_shelf(shelf: ShelfManager) -> None:
-    """更新书架中所有书籍"""
-    books = shelf.list_books()
+def _print_event(event: ProgressEvent) -> None:
+    """将 ProgressEvent 打印到终端"""
+    if event.type == "info":
+        click.echo(f"ℹ️  {event.message}")
+    elif event.type == "progress":
+        click.echo(f"  [{event.downloaded}/{event.total}] {event.current} ✓")
+    elif event.type == "export":
+        click.echo(f"📦 {event.message}")
+    elif event.type == "complete":
+        click.echo(f"🎉 {event.message}")
+        for f in event.output_files:
+            click.echo(f"   📄 {f}")
+    elif event.type == "error":
+        click.echo(f"❌ {event.message}")
+
+
+def _print_shelf(shelf_service: ShelfService) -> None:
+    """打印书架列表"""
+    books = shelf_service.list_books()
     if not books:
         click.echo("📚 书架为空")
         return
 
-    click.echo(f"🔄 正在更新书架中的 {len(books)} 本书...")
-
-    cookie_mgr = CookieManager()
-    try:
-        cookies = BrowserCookieFetcher.fetch_zhihu_cookies()
-        if cookies:
-            cookie_mgr.load_from_dict(cookies)
-    except Exception:
-        pass
-
-    downloader = AsyncDownloader(
-        max_concurrent=3,
-        rate_limit=2.0,
-        cookies=cookie_mgr.get_cookies(),
-    )
-
-    try:
-        for book in books:
-            url = book.get("url")
-            if not url:
-                continue
-
-            click.echo(f"\n📖 检查: {book.get('title', '未知')}")
-            try:
-                html = await downloader.fetch(url)
-                parser = ArticleParser()
-                info = parser.parse_article_info(html)
-
-                existing_count = book.get("chapter_count", 0)
-                if info.chapter_count > existing_count:
-                    new_chapters = info.chapter_count - existing_count
-                    click.echo(f"   ⬆️  发现 {new_chapters} 个新章节")
-                    await _download_single_book(
-                        url=url,
-                        downloader=downloader,
-                        cfg=Config(),
-                        output_dir="./output",
-                        export_format="md",
-                        list_only=False,
-                        resume=True,
-                        update_check=False,
-                        shelf=shelf,
-                    )
-                else:
-                    click.echo("   ✅ 已是最新")
-
-            except Exception as e:
-                click.echo(f"   ❌ 检查失败: {e}")
-
-    finally:
-        await downloader.close()
-
-
-def _print_chapters(chapters: list) -> None:
-    """打印章节列表"""
-    click.echo("\n📑 章节列表:")
+    click.echo("📚 我的书架:")
     click.echo("-" * 50)
+    for book in books:
+        status = "✓" if book.get("completed") else "○"
+        click.echo(f"  {status} {book.get('title', '未知标题')}")
+        click.echo(f"     作者: {book.get('author', '未知作者')}")
+        click.echo(f"     章节: {book.get('chapter_count', 0)}")
+        if book.get("last_update"):
+            click.echo(f"     更新: {book.get('last_update')}")
 
-    classifier = ChapterClassifier()
 
-    for ch in chapters:
-        ch_type = classifier.classify(ch.title)
-        type_label: dict[str, str] = {
-            "normal": "正文",
-            "extra": "番外",
-            "author_note": "作者说",
-            "unknown": "其他",
-        }.get(ch_type, "其他")
+# ---------------------------------------------------------------------------
+# 工具函数
+# ---------------------------------------------------------------------------
 
-        click.echo(f"  [{type_label}] {ch.title}")
+
+def _read_batch_file(path: str) -> list[str]:
+    """读取批量下载文件，过滤空行与注释"""
+    urls: list[str] = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                urls.append(line)
+    return urls
 
 
 if __name__ == "__main__":

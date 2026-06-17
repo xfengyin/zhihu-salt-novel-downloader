@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Link, Upload, Play, Loader2 } from 'lucide-react'
+import { Link, Upload, Play, Loader2, FileCheck2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,18 +6,17 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { DownloadConfig, DownloadProgress } from '@/types'
+import type { DownloadConfig, DownloadProgress, ExportFormat } from '@/types'
 
 interface DownloadPanelProps {
   config: DownloadConfig
   progress: DownloadProgress
   onConfigChange: (config: Partial<DownloadConfig>) => void
-  onStart: () => void
+  /** 启动下载，可能为异步以等待后端任务创建 */
+  onStart: () => void | Promise<void>
 }
 
 export function DownloadPanel({ config, progress, onConfigChange, onStart }: DownloadPanelProps) {
-  const [cookieInput, setCookieInput] = useState('')
-
   const handleCookieUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -35,11 +33,21 @@ export function DownloadPanel({ config, progress, onConfigChange, onStart }: Dow
     }
   }
 
-  const progressPercent = progress.total > 0 
-    ? Math.round((progress.downloaded / progress.total) * 100) 
+  const progressPercent = progress.total > 0
+    ? Math.round((progress.downloaded / progress.total) * 100)
     : 0
 
   const isDownloading = progress.status === 'downloading' || progress.status === 'exporting'
+
+  /**
+   * 包装 onStart 以安全处理异步异常
+   * 避免 unhandled promise rejection 导致控制台告警
+   */
+  const handleStartClick = (): void => {
+    Promise.resolve(onStart()).catch((err: unknown) => {
+      console.error('启动下载失败', err)
+    })
+  }
 
   return (
     <Card className="shadow-lg">
@@ -63,7 +71,7 @@ export function DownloadPanel({ config, progress, onConfigChange, onStart }: Dow
               onChange={(e) => onConfigChange({ url: e.target.value })}
               className="flex-1"
             />
-            <Button onClick={onStart} disabled={!config.url || isDownloading}>
+            <Button onClick={handleStartClick} disabled={!config.url || isDownloading}>
               {isDownloading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
@@ -109,7 +117,7 @@ export function DownloadPanel({ config, progress, onConfigChange, onStart }: Dow
             <Label>导出格式</Label>
             <Select
               value={config.format}
-              onValueChange={(value) => onConfigChange({ format: value as DownloadConfig['format'] })}
+              onValueChange={(value) => onConfigChange({ format: value as ExportFormat })}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -118,6 +126,7 @@ export function DownloadPanel({ config, progress, onConfigChange, onStart }: Dow
                 <SelectItem value="md">Markdown (.md)</SelectItem>
                 <SelectItem value="epub">EPUB (.epub)</SelectItem>
                 <SelectItem value="txt">文本 (.txt)</SelectItem>
+                <SelectItem value="mobi">MOBI (.mobi)</SelectItem>
                 <SelectItem value="all">全部格式</SelectItem>
               </SelectContent>
             </Select>
@@ -154,6 +163,21 @@ export function DownloadPanel({ config, progress, onConfigChange, onStart }: Dow
             )}
             {progress.error && (
               <p className="text-xs text-destructive">{progress.error}</p>
+            )}
+            {progress.status === 'completed' && progress.outputFiles && progress.outputFiles.length > 0 && (
+              <div className="space-y-1 pt-2 border-t border-border/50">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-green-600">
+                  <FileCheck2 className="w-3.5 h-3.5" />
+                  导出文件
+                </div>
+                <ul className="space-y-1">
+                  {progress.outputFiles.map((file) => (
+                    <li key={file} className="text-xs text-muted-foreground truncate pl-5">
+                      {file}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}
