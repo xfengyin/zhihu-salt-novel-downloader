@@ -47,6 +47,8 @@ web/node_modules/
 dist/
 build/
 *.spec
+# 例外：项目核心 spec 文件需纳入版本控制
+!pyinstaller.spec
 
 # Logs
 *.log

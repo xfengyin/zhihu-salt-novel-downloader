@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
+import webbrowser
 
 import click
 import uvicorn
@@ -99,17 +101,52 @@ def download_command(
 @click.option("--port", "-p", default=3000, type=int, help="监听端口")
 @click.option("--reload", is_flag=True, help="开发模式：热重载")
 @click.option("--workers", default=1, type=int, help="工作进程数")
+@click.option(
+    "--no-browser",
+    is_flag=True,
+    help="不自动打开浏览器（默认会打开）",
+)
 def serve_command(
     host: str,
     port: int,
     reload: bool,
     workers: int,
+    no_browser: bool,
 ) -> None:
-    """启动 FastAPI 服务"""
-    click.echo(f"🚀 启动 HTTP API 服务: http://{host}:{port}")
-    click.echo(f"   API 文档: http://{host}:{port}/docs")
-    click.echo(f"   OpenAPI: http://{host}:{port}/openapi.json")
-    click.echo("   按 Ctrl+C 停止服务")
+    """启动 FastAPI 服务
+
+    默认会在后台打开浏览器访问 http://127.0.0.1:{port}，
+    便于双击 exe 的用户直接看到 Web 界面。
+    可通过 --no-browser 关闭此行为。
+    """
+    # 用户可见的访问地址：0.0.0.0 在浏览器无法访问，统一展示为 127.0.0.1
+    display_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    web_url = f"http://{display_host}:{port}"
+
+    click.echo("=" * 60)
+    click.echo("🚀 知乎盐选小说下载器 - Web 服务启动中")
+    click.echo("=" * 60)
+    click.echo(f"   📚 Web 界面: {web_url}")
+    click.echo(f"   📖 API 文档:  {web_url}/docs")
+    click.echo(f"   🔌 OpenAPI:  {web_url}/openapi.json")
+    click.echo("   ⏹  按 Ctrl+C 停止服务")
+    click.echo("=" * 60)
+
+    # 后台延迟打开浏览器，确保 uvicorn 已就绪
+    if not no_browser:
+        def _open_browser_delayed() -> None:
+            """延迟 1.5 秒打开浏览器，等待服务就绪"""
+            import time
+
+            time.sleep(1.5)
+            try:
+                webbrowser.open(web_url, new=2)
+            except Exception:
+                # 浏览器打开失败不影响服务运行
+                pass
+
+        threading.Thread(target=_open_browser_delayed, daemon=True).start()
+
     uvicorn.run(
         "zhihu_downloader.api.app:create_app",
         host=host,

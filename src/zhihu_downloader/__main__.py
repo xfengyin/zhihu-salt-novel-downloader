@@ -5,6 +5,9 @@ PyInstaller 需要一个明确的入口脚本，
 
 Windows 控制台默认可能是 cp1252/cp936 编码，
 强制 stdout/stderr 使用 UTF-8 以正确显示中文帮助信息。
+
+双击 exe（无参数）默认启动 serve 服务并打开浏览器，
+避免用户误以为"纯命令行程序"。
 """
 
 import sys
@@ -34,5 +37,24 @@ _force_utf8_stdio()
 
 from zhihu_downloader.cli import cli  # noqa: E402
 
+
+def _is_gui_launch() -> bool:
+    """判断是否为「双击启动」场景
+
+    PyInstaller 打包后，双击 exe 时 sys.argv 只含 exe 自身路径。
+    此场景下默认启动 serve 服务，让用户直接看到 Web 界面，
+    而不是 CLI 帮助菜单。
+    """
+    # 无任何子命令参数
+    if len(sys.argv) != 1:
+        return False
+    # 排除 -h / --help / --version 等显式参数
+    return True
+
+
 if __name__ == "__main__":
+    # 双击启动：默认进入 serve 模式，提供完整 Web UI
+    # 安全考虑：双击场景仅监听本机回环地址，避免局域网暴露
+    if _is_gui_launch():
+        sys.argv = [sys.argv[0], "serve", "--host", "127.0.0.1"]
     cli()
