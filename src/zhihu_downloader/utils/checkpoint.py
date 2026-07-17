@@ -62,10 +62,10 @@ class CheckpointManager:
             return set()
 
         try:
-            with open(self._checkpoint_file, "r", encoding="utf-8") as f:
+            with open(self._checkpoint_file, encoding="utf-8") as f:
                 data: dict[str, list[str]] = json.load(f)
             return set(data.get("downloaded_ids", []))
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return set()
 
     def clear_checkpoint(self) -> None:

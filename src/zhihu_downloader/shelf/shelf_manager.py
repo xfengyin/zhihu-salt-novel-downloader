@@ -6,13 +6,13 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 
 class ShelfManager:
     """书架管理器"""
 
-    def __init__(self, shelf_file: Optional[str] = None) -> None:
+    def __init__(self, shelf_file: str | None = None) -> None:
         """
         初始化书架管理器
 
@@ -25,7 +25,7 @@ class ShelfManager:
             self._shelf_file = self._get_default_shelf_file()
 
         self._shelf_file.parent.mkdir(parents=True, exist_ok=True)
-        self._books: List[dict[str, Any]] = self._load_shelf()
+        self._books: list[dict[str, Any]] = self._load_shelf()
 
     def _get_default_shelf_file(self) -> Path:
         """获取默认书架文件路径"""
@@ -39,14 +39,15 @@ class ShelfManager:
                 return Path(home) / ".config" / "zhihu-downloader" / "shelf.json"
         return Path(".") / "shelf.json"
 
-    def _load_shelf(self) -> List[dict[str, Any]]:
+    def _load_shelf(self) -> list[dict[str, Any]]:
         """加载书架数据"""
         if not self._shelf_file.exists():
             return []
         try:
-            with open(self._shelf_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
+            with open(self._shelf_file, encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, list) else []
+        except (OSError, json.JSONDecodeError):
             return []
 
     def _save_shelf(self) -> None:
@@ -54,7 +55,7 @@ class ShelfManager:
         with open(self._shelf_file, "w", encoding="utf-8") as f:
             json.dump(self._books, f, ensure_ascii=False, indent=2)
 
-    def list_books(self) -> List[dict[str, Any]]:
+    def list_books(self) -> list[dict[str, Any]]:
         """
         获取书架中的所有书籍
 
@@ -63,7 +64,7 @@ class ShelfManager:
         """
         return self._books
 
-    def get_book(self, url: str) -> Optional[dict[str, Any]]:
+    def get_book(self, url: str) -> dict[str, Any] | None:
         """
         根据URL获取书籍信息
 
@@ -78,7 +79,7 @@ class ShelfManager:
                 return book
         return None
 
-    def add_book(self, url: str, info: Optional[dict[str, Any]] = None) -> None:
+    def add_book(self, url: str, info: dict[str, Any] | None = None) -> None:
         """
         添加书籍到书架
 

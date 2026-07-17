@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from zhihu_downloader.parsers.article_parser import ArticleInfo, Chapter
@@ -25,7 +25,7 @@ class BaseExporter(ABC):
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
-    def export(self, article_info: ArticleInfo | dict) -> Path:
+    def export(self, article_info: ArticleInfo | dict[str, Any]) -> Path:
         """
         导出文件
 
@@ -53,8 +53,8 @@ class BaseExporter(ABC):
         return filename or "untitled"
 
     def group_chapters(
-        self, chapters: list[Chapter | dict]
-    ) -> dict[str, list[Chapter | dict]]:
+        self, chapters: list[Chapter | dict[str, Any]]
+    ) -> dict[str, list[Chapter | dict[str, Any]]]:
         """
         按类型分组章节
 
@@ -64,7 +64,7 @@ class BaseExporter(ABC):
         Returns:
             分组后的章节字典
         """
-        grouped: dict[str, list[Chapter | dict]] = {
+        grouped: dict[str, list[Chapter | dict[str, Any]]] = {
             "normal": [],
             "extra": [],
             "author_note": [],
@@ -81,7 +81,7 @@ class BaseExporter(ABC):
         return grouped
 
     def build_toc(
-        self, chapters: list[Chapter | dict]
+        self, chapters: list[Chapter | dict[str, Any]]
     ) -> str:
         """
         构建目录

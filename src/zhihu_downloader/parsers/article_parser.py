@@ -97,7 +97,8 @@ class ArticleParser:
         """提取标题"""
         meta_title = soup.find("meta", property="og:title")
         if meta_title and meta_title.get("content"):
-            return meta_title["content"].strip()
+            content = meta_title["content"]
+            return content.strip() if isinstance(content, str) else str(content)
 
         title_tag = soup.find("title")
         if title_tag:
@@ -113,11 +114,13 @@ class ArticleParser:
         """提取作者"""
         meta_author = soup.find("meta", attrs={"name": "author"})
         if meta_author and meta_author.get("content"):
-            return meta_author["content"].strip()
+            content = meta_author["content"]
+            return content.strip() if isinstance(content, str) else str(content)
 
         author_elem = soup.find(attrs={"data-author-name": True})
         if author_elem:
-            return author_elem["data-author-name"]
+            content = author_elem["data-author-name"]
+            return content.strip() if isinstance(content, str) else str(content)
 
         author_link = soup.find("a", href=re.compile(r"/people/"))
         if author_link:
@@ -129,11 +132,13 @@ class ArticleParser:
         """提取描述"""
         meta_desc = soup.find("meta", property="og:description")
         if meta_desc and meta_desc.get("content"):
-            return meta_desc["content"].strip()
+            content = meta_desc["content"]
+            return content.strip() if isinstance(content, str) else str(content)
 
         meta_desc2 = soup.find("meta", attrs={"name": "description"})
         if meta_desc2 and meta_desc2.get("content"):
-            return meta_desc2["content"].strip()
+            content = meta_desc2["content"]
+            return content.strip() if isinstance(content, str) else str(content)
 
         return ""
 
@@ -141,7 +146,8 @@ class ArticleParser:
         """提取封面图"""
         meta_image = soup.find("meta", property="og:image")
         if meta_image and meta_image.get("content"):
-            return meta_image["content"].strip()
+            content = meta_image["content"]
+            return content.strip() if isinstance(content, str) else str(content)
         return ""
 
     def _extract_chapters(self, soup: BeautifulSoup) -> list[Chapter]:
@@ -154,11 +160,13 @@ class ArticleParser:
             link = item.find("a", href=True)
             if link:
                 order += 1
+                href = link["href"]
+                href_str = href if isinstance(href, str) else str(href)
                 chapters.append(
                     Chapter(
-                        id=self._extract_chapter_id(link["href"]),
+                        id=self._extract_chapter_id(href_str),
                         title=self._clean_text(link.get_text()),
-                        url=self._build_url(link["href"]),
+                        url=self._build_url(href_str),
                         order=order,
                     )
                 )
@@ -173,12 +181,14 @@ class ArticleParser:
                     "/answer/" in link["href"] or "/article/" in link["href"]
                 ):
                     order += 1
+                    href = link["href"]
+                    href_str = href if isinstance(href, str) else str(href)
                     title = link.get_text().strip() or article.get_text().strip()[:50]
                     chapters.append(
                         Chapter(
-                            id=self._extract_chapter_id(link["href"]),
+                            id=self._extract_chapter_id(href_str),
                             title=self._clean_text(title),
-                            url=self._build_url(link["href"]),
+                            url=self._build_url(href_str),
                             order=order,
                         )
                     )
@@ -191,7 +201,8 @@ class ArticleParser:
                 current_url = ""
                 link = soup.find("link", rel="canonical")
                 if link and link.get("href"):
-                    current_url = link["href"]
+                    href = link["href"]
+                    current_url = href if isinstance(href, str) else str(href)
 
                 order = 1
                 title_tag = soup.find("title")

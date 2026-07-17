@@ -28,7 +28,7 @@ class CookieManager:
             msg = f"Cookie文件不存在: {path}"
             raise FileNotFoundError(msg)
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             cookies_data: list[dict[str, Any]] = json.load(f)
 
         for item in cookies_data:

@@ -65,6 +65,10 @@ class ShelfService:
             logger.exception("标记完成失败: %s", url)
             return {"success": False, "message": f"标记失败: {e}"}
 
+    def clean_shelf(self) -> dict[str, Any]:
+        """清空书架"""
+        return self.clean_cache()
+
     def clean_cache(self) -> dict[str, Any]:
         """清空书架"""
         try:

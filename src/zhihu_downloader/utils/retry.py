@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, TypeVar, ParamSpec
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def async_retry(
     base_delay: float = 1.0,
     max_delay: float = 60.0,
     exceptions: tuple[type[Exception], ...] = (Exception,),
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
+) -> Callable[[Callable[P, Any]], Callable[P, Any]]:
     """
     异步重试装饰器
 
@@ -31,9 +32,10 @@ def async_retry(
     Returns:
         装饰器函数
     """
-    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+
+    def decorator(func: Callable[P, Any]) -> Callable[P, Any]:
         @functools.wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
             last_exception: Exception | None = None
 
             for attempt in range(max_attempts):
@@ -57,6 +59,7 @@ def async_retry(
             raise RuntimeError(f"{func.__name__} 重试 {max_attempts} 次后失败")
 
         return wrapper
+
     return decorator
 
 
@@ -106,4 +109,5 @@ def sync_retry(
             raise RuntimeError(f"{func.__name__} 重试 {max_attempts} 次后失败")
 
         return wrapper
+
     return decorator

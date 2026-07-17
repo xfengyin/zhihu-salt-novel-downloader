@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
-from typing import Pattern
+from re import Pattern
+from typing import ClassVar
 
 
 class ContentCleaner:
     """内容清洗器"""
 
-    AD_PATTERNS: list[Pattern[str]] = [
+    AD_PATTERNS: ClassVar[list[Pattern[str]]] = [
         re.compile(r"关注公众号|扫码关注|微信搜索"),
         re.compile(r"知乎.*?会员|盐选.*?会员"),
         re.compile(r"付费内容|购买全文|解锁全文"),
@@ -18,13 +19,13 @@ class ContentCleaner:
         re.compile(r"点击.*?查看|点击.*?阅读"),
     ]
 
-    WATERMARK_PATTERNS: list[Pattern[str]] = [
+    WATERMARK_PATTERNS: ClassVar[list[Pattern[str]]] = [
         re.compile(r"@知乎|zhihu\.com"),
         re.compile(r"\[.*?@.*?\]"),
         re.compile(r"来源：.*?|出处：.*?"),
     ]
 
-    TRASH_PATTERNS: list[Pattern[str]] = [
+    TRASH_PATTERNS: ClassVar[list[Pattern[str]]] = [
         re.compile(r"^\s*\[.*?\]\s*$"),
         re.compile(r"^\s*\{.*?\}\s*$"),
         re.compile(r"^\s*<!--.*?-->\s*$", re.DOTALL),

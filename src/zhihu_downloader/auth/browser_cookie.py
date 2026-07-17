@@ -24,7 +24,7 @@ class BrowserCookieFetcher:
             ("Edge", BrowserCookieFetcher._get_edge_cookies),
         ]
 
-        for browser_name, getter in browsers:
+        for _browser_name, getter in browsers:
             try:
                 cookies = getter()
                 if cookies:
@@ -46,7 +46,7 @@ class BrowserCookieFetcher:
         cookies: dict[str, str] = {}
         for cookie_file in cookie_dir.glob("*.json"):
             try:
-                with open(cookie_file, "r", encoding="utf-8") as f:
+                with open(cookie_file, encoding="utf-8") as f:
                     data = json.load(f)
                     for cookie in data:
                         if cookie.get("domain") and ("zhihu" in cookie["domain"]):

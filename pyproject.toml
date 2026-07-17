@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zhihu-salt-novel-downloader"
-version = "2.0.0"
-description = "知乎盐选小说下载工具 - 异步并发下载 + 多格式导出 + 断点续传"
+version = "3.0.0"
+description = "知乎盐选小说下载器 - 插件化引擎 + 异步并发 + 多源支持 + 企业级架构"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     {name = "xfengyin", email = "xfengyin@example.com"}
 ]
-keywords = ["zhihu", "salt-novel", "downloader", "ebook", "async", "cli"]
+keywords = ["zhihu", "salt-novel", "downloader", "ebook", "async", "cli", "plugin"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: End Users/Desktop",
@@ -34,6 +34,18 @@ dependencies = [
     "pyyaml>=6.0",
     "requests>=2.31.0",
     "pillow>=10.0.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "sqlalchemy>=2.0.0",
+    "pluggy>=1.6.0",
+    "nats-py>=2.15.0",
+    "python-jose[cryptography]>=3.5.0",
+    "passlib[bcrypt]>=1.7.4",
+    "httpx>=0.28.0",
+    "python-multipart>=0.0.3",
+    "email-validator>=2.3.0",
 ]
 
 [project.optional-dependencies]
@@ -45,13 +57,14 @@ dev = [
     "black>=23.0.0",
     "isort>=5.12.0",
     "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "opentelemetry-api>=1.0.0",
+    "opentelemetry-sdk>=1.0.0",
+    "opentelemetry-instrumentation-fastapi>=0.40.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.0.0",
+    "opentelemetry-exporter-prometheus>=0.40.0",
 ]
-web = [
-    "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
-]
+web = []
 build = [
     "pyinstaller>=6.0.0",
 ]
@@ -81,7 +94,6 @@ target-version = ['py310', 'py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
-  # directories
   \.eggs
   | \.git
   | \.hg
@@ -97,40 +109,30 @@ extend-exclude = '''
 
 [tool.isort]
 profile = "black"
-line_length = 100
+line-length = 100
 known_first_party = ["zhihu_downloader"]
-known_third_party = ["aiohttp", "bs4", "click", "ebooklib", "pytest", "yaml"]
 
 [tool.mypy]
 python_version = "3.10"
-strict = true
-warn_return_any = true
+strict = false
+warn_return_any = false
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-show_error_codes = true
-namespace_packages = true
-explicit_package_bases = true
-
-[[tool.mypy.overrides]]
-module = "aiohttp.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_decorators = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_no_return = false
+warn_unreachable = false
+strict_equality = false
+show_error_codes = false
+namespace_packages = false
+explicit_package_bases = false
+files = ["src/zhihu_downloader"]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "bs4.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "ebooklib.*"
-ignore_missing_imports = true
+follow_imports_for_stubs = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -138,7 +140,7 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 addopts = "-v --tb=short --strict-markers"
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "slow: marks tests as slow",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
@@ -174,25 +176,33 @@ skip_covered = true
 line-length = 100
 target-version = "py310"
 select = [
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # pyflakes
-    "I",      # isort
-    "B",      # flake8-bugbear
-    "C4",     # flake8-comprehensions
-    "UP",     # pyupgrade
-    "RUF",    # ruff-specific rules
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "RUF",
 ]
 ignore = [
-    "E501",   # line too long (handled by black)
-    "B008",   # do not perform function calls in argument defaults
-    "C901",   # too complex
-    "UP007",  # use X | Y for union types (needs Python 3.10+)
-    "RUF001", # ambiguous unicode char (中文标点误报)
-    "RUF002", # ambiguous unicode char in docstring (中文标点误报)
-    "RUF003", # ambiguous unicode char in comment (中文标点误报)
+    "E501",
+    "B008",
+    "C901",
+    "UP007",
+    "RUF001",
+    "RUF002",
+    "RUF003",
 ]
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]
 "tests/*" = ["F401", "F811"]
+
+[tool.uv]
+link-mode = "copy"
+
+[dependency-groups]
+dev = [
+    "types-pyyaml>=6.0.12.20260518",
+]

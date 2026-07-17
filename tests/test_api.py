@@ -83,7 +83,7 @@ class TestShelfRoutes:
             client.app.state.shelf_service = ShelfService(
                 shelf=ShelfManager(shelf_file=shelf_file)
             )
-            resp = client.get("/api/shelf/books")
+            resp = client.get("/api/shelves")
             assert resp.status_code == 200
             assert resp.json() == []
 
@@ -102,13 +102,13 @@ class TestShelfRoutes:
             )
 
             resp = client.post(
-                "/api/shelf/books",
+                "/api/shelves",
                 json={"url": "https://www.zhihu.com/test"},
             )
             assert resp.status_code == 200
             assert resp.json()["success"] is True
 
-            resp = client.get("/api/shelf/books")
+            resp = client.get("/api/shelves")
             assert resp.status_code == 200
             books = resp.json()
             assert len(books) == 1
@@ -116,7 +116,7 @@ class TestShelfRoutes:
 
     def test_get_stats(self, client: TestClient) -> None:
         """统计接口应返回正确结构"""
-        resp = client.get("/api/shelf/stats")
+        resp = client.get("/api/shelves/stats")
         assert resp.status_code == 200
         data = resp.json()
         assert "total" in data
@@ -125,7 +125,7 @@ class TestShelfRoutes:
 
     def test_clean_shelf(self, client: TestClient) -> None:
         """清空书架应成功"""
-        resp = client.post("/api/shelf/clean")
+        resp = client.delete("/api/shelves")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 
@@ -143,7 +143,7 @@ class TestShelfRoutes:
             svc.add_book("https://www.zhihu.com/x", {"title": "X"})
             client.app.state.shelf_service = svc
 
-            resp = client.delete("/api/shelf/books/https%3A%2F%2Fwww.zhihu.com%2Fx")
+            resp = client.delete("/api/shelves/https%3A%2F%2Fwww.zhihu.com%2Fx")
             assert resp.status_code == 200
             assert resp.json()["success"] is True
 
@@ -158,13 +158,13 @@ class TestDownloadRoutes:
 
     def test_start_download_no_url(self, client: TestClient) -> None:
         """未提供 URL 应返回 400"""
-        resp = client.post("/api/download", json={})
+        resp = client.post("/api/downloads", json={})
         assert resp.status_code == 400
 
     def test_start_download_returns_task_id(self, client: TestClient) -> None:
         """启动下载应返回 task_id"""
         resp = client.post(
-            "/api/download",
+            "/api/downloads",
             json={"url": "https://www.zhihu.com/test"},
         )
         assert resp.status_code == 200
@@ -174,19 +174,19 @@ class TestDownloadRoutes:
 
     def test_list_tasks(self, client: TestClient) -> None:
         """任务列表应返回数组"""
-        resp = client.get("/api/download/tasks")
+        resp = client.get("/api/downloads")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_stream_not_found(self, client: TestClient) -> None:
         """不存在的 task_id 应返回 404"""
-        resp = client.get("/api/download/stream/nonexistent")
+        resp = client.get("/api/downloads/stream/nonexistent")
         assert resp.status_code == 404
 
     def test_download_with_invalid_url(self, client: TestClient) -> None:
         """非法 URL 格式应被 schema 校验拒绝"""
         resp = client.post(
-            "/api/download",
+            "/api/downloads",
             json={"url": "not-a-url"},
         )
         assert resp.status_code == 422
@@ -194,7 +194,7 @@ class TestDownloadRoutes:
     def test_download_with_invalid_concurrent(self, client: TestClient) -> None:
         """并发数超限应被校验拒绝"""
         resp = client.post(
-            "/api/download",
+            "/api/downloads",
             json={"url": "https://www.zhihu.com/x", "max_concurrent": 100},
         )
         assert resp.status_code == 422

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 
@@ -12,7 +12,7 @@ import yaml
 class Config:
     """配置管理器"""
 
-    DEFAULT_CONFIG: dict[str, Any] = {
+    DEFAULT_CONFIG: ClassVar[dict[str, Any]] = {
         "download": {
             "max_concurrent": 3,
             "rate_limit": 2.0,
@@ -56,7 +56,7 @@ class Config:
         if not path.exists():
             return
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             user_config: dict[str, Any] = yaml.safe_load(f) or {}
 
         self._deep_update(self._config, user_config)
@@ -128,9 +128,9 @@ class Config:
         config = cls()
 
         if os.getenv("MAX_CONCURRENT"):
-            config.set("download.max_concurrent", int(os.getenv("MAX_CONCURRENT")))
+            config.set("download.max_concurrent", int(os.getenv("MAX_CONCURRENT") or 0))
         if os.getenv("RATE_LIMIT"):
-            config.set("download.rate_limit", float(os.getenv("RATE_LIMIT")))
+            config.set("download.rate_limit", float(os.getenv("RATE_LIMIT") or 0.0))
         if os.getenv("OUTPUT_DIR"):
             config.set("output.output_dir", os.getenv("OUTPUT_DIR"))
         if os.getenv("COOKIE_FILE"):

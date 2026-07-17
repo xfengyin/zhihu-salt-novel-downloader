@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 from .base_exporter import BaseExporter
 
@@ -32,7 +33,7 @@ class MobiExporter(BaseExporter):
                 return path
         return None
 
-    def export(self, article_info: ArticleInfo | dict) -> Path:
+    def export(self, article_info: ArticleInfo | dict[str, Any]) -> Path:
         """
         导出为MOBI文件
 
@@ -65,13 +66,12 @@ class MobiExporter(BaseExporter):
         self,
         title: str,
         author: str,
-        chapters: list[dict],
+        chapters: list[dict[str, Any]],
         output_path: Path,
     ) -> Path:
         """使用kindlegen导出"""
         import subprocess
         import tempfile
-        from xml.etree.ElementTree import Element, SubElement, tostring
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -89,7 +89,7 @@ class MobiExporter(BaseExporter):
                 ch_file = tmp_path / f"ch{i:03d}.html"
                 ch_file.write_text(html_content, encoding="utf-8")
 
-            cmd = [self._kindlegen_path, str(opf_file), "-o", str(output_path.name)]
+            cmd: list[str] = [self._kindlegen_path, str(opf_file), "-o", str(output_path.name)]
             subprocess.run(
                 cmd,
                 cwd=str(tmp_path),
@@ -104,7 +104,7 @@ class MobiExporter(BaseExporter):
         self,
         title: str,
         author: str,
-        chapters: list[dict],
+        chapters: list[dict[str, Any]],
         output_path: Path,
     ) -> Path:
         """回退导出（无kindlegen时）"""
@@ -117,7 +117,7 @@ class MobiExporter(BaseExporter):
         self,
         title: str,
         author: str,
-        chapters: list[dict],
+        chapters: list[dict[str, Any]],
     ) -> str:
         """构建OPF文件内容"""
         root = Element("package", xmlns="http://www.idpf.org/2007/opf", version="2.0", unique_identifier="bookid")
@@ -135,7 +135,7 @@ class MobiExporter(BaseExporter):
         manifest = SubElement(root, "manifest")
         SubElement(manifest, "item", id="ncx", href="toc.ncx", media_type="application/x-dtbncx+xml")
 
-        for i, chapter in enumerate(chapters, 1):
+        for i, _chapter in enumerate(chapters, 1):
             SubElement(manifest, "item", id=f"ch{i}", href=f"ch{i:03d}.html", media_type="application/xhtml+xml")
 
         spine = SubElement(root, "spine", toc="ncx")
@@ -150,7 +150,7 @@ class MobiExporter(BaseExporter):
     def _build_ncx(
         self,
         title: str,
-        chapters: list[dict],
+        chapters: list[dict[str, Any]],
     ) -> str:
         """构建NCX目录文件"""
         root = Element("ncx", xmlns="http://www.daisy.org/z3986/2005/ncx/", version="2005-1")
@@ -174,7 +174,7 @@ class MobiExporter(BaseExporter):
 
         return '<?xml version="1.0" encoding="UTF-8"?>\n' + tostring(root, encoding="unicode")
 
-    def _build_chapter_html(self, chapter: dict, index: int) -> str:
+    def _build_chapter_html(self, chapter: dict[str, Any], index: int) -> str:
         """构建章节HTML"""
         title = chapter.get("title", f"第{index}章")
         content = chapter.get("content", "")
@@ -196,7 +196,7 @@ class MobiExporter(BaseExporter):
         self,
         title: str,
         author: str,
-        chapters: list[dict],
+        chapters: list[dict[str, Any]],
     ) -> str:
         """构建纯文本内容"""
         lines: list[str] = []

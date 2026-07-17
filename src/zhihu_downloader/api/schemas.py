@@ -233,6 +233,206 @@ class DownloadResultSchema(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# 认证相关
+# ---------------------------------------------------------------------------
+
+
+class LoginRequest(BaseModel):
+    """登录请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(description="邮箱")
+    password: str = Field(description="密码")
+
+
+class RegisterRequest(BaseModel):
+    """注册请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(description="邮箱")
+    password: str = Field(description="密码")
+    username: str = Field(default="", description="用户名")
+
+
+class TokenResponse(BaseModel):
+    """令牌响应"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    access_token: str = Field(description="访问令牌")
+    refresh_token: str = Field(description="刷新令牌")
+    token_type: str = Field(default="bearer", description="令牌类型")
+
+
+class RefreshRequest(BaseModel):
+    """刷新令牌请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: str = Field(description="刷新令牌")
+
+
+# ---------------------------------------------------------------------------
+# 用户相关
+# ---------------------------------------------------------------------------
+
+
+class UserSchema(BaseModel):
+    """用户 schema"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int = Field(description="用户ID")
+    email: str = Field(description="邮箱")
+    username: str = Field(default="", description="用户名")
+    plan: str = Field(default="free", description="订阅计划")
+    is_active: bool = Field(default=True, description="是否激活")
+    created_at: str = Field(description="创建时间")
+    updated_at: str = Field(description="更新时间")
+
+
+# ---------------------------------------------------------------------------
+# 书架相关
+# ---------------------------------------------------------------------------
+
+
+class ShelfSchema(BaseModel):
+    """书架 schema"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int = Field(description="书架ID")
+    name: str = Field(description="书架名称")
+    is_default: bool = Field(default=False, description="是否默认书架")
+    book_count: int = Field(default=0, ge=0, description="书籍数量")
+    created_at: str = Field(description="创建时间")
+
+
+class ShelfCreateRequest(BaseModel):
+    """创建书架请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="书架名称")
+    is_default: bool = Field(default=False, description="是否设为默认书架")
+
+
+class ShelfUpdateRequest(BaseModel):
+    """更新书架请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, description="书架名称")
+    is_default: bool | None = Field(default=None, description="是否设为默认书架")
+
+
+# ---------------------------------------------------------------------------
+# 书籍详情相关
+# ---------------------------------------------------------------------------
+
+
+class BookDetailSchema(BaseModel):
+    """书籍详情 schema"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int = Field(description="书籍ID")
+    url: str = Field(description="书籍URL")
+    title: str = Field(description="书籍标题")
+    author: str = Field(default="", description="作者")
+    chapter_count: int = Field(default=0, ge=0, description="章节数")
+    cover_url: str = Field(default="", description="封面URL")
+    description: str = Field(default="", description="书籍描述")
+    source: str = Field(description="来源")
+    last_sync_at: str | None = Field(default=None, description="最后同步时间")
+    created_at: str = Field(description="创建时间")
+    shelf_id: int | None = Field(default=None, description="所属书架ID")
+
+
+class BookCreateRequest(BaseModel):
+    """创建书籍请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(description="书籍URL")
+    shelf_id: int | None = Field(default=None, description="所属书架ID")
+
+
+# ---------------------------------------------------------------------------
+# API Key 相关
+# ---------------------------------------------------------------------------
+
+
+class APIKeyCreateRequest(BaseModel):
+    """创建 API Key 请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="API Key 名称")
+    scopes: list[str] = Field(default_factory=list, description="权限范围列表")
+    expires_days: int | None = Field(default=None, description="过期天数，None表示永不过期")
+
+
+class APIKeySchema(BaseModel):
+    """API Key schema"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int = Field(description="API Key ID")
+    name: str = Field(description="API Key 名称")
+    scopes: list[str] = Field(description="权限范围列表")
+    last_used_at: str | None = Field(default=None, description="最后使用时间")
+    expires_at: str | None = Field(default=None, description="过期时间")
+    created_at: str = Field(description="创建时间")
+
+
+class APIKeyCreateResponse(BaseModel):
+    """创建 API Key 响应"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: str = Field(description="原始 API Key（仅创建时返回一次）")
+    key_id: int = Field(description="API Key ID")
+    name: str = Field(description="API Key 名称")
+    scopes: list[str] = Field(description="权限范围列表")
+    expires_at: str | None = Field(default=None, description="过期时间")
+    created_at: str = Field(description="创建时间")
+
+
+# ---------------------------------------------------------------------------
+# 插件相关
+# ---------------------------------------------------------------------------
+
+
+class PluginSchema(BaseModel):
+    """插件 schema"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: int = Field(description="插件ID")
+    name: str = Field(description="插件名称")
+    version: str = Field(description="插件版本")
+    kind: str = Field(description="插件类型")
+    entry: str = Field(description="插件入口")
+    enabled: bool = Field(default=True, description="是否启用")
+    created_at: str = Field(description="创建时间")
+
+
+class PluginCreateRequest(BaseModel):
+    """创建插件请求"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="插件名称")
+    version: str = Field(description="插件版本")
+    kind: str = Field(description="插件类型")
+    entry: str = Field(description="插件入口")
+    config: dict = Field(default_factory=dict, description="插件配置")
+
+
+# ---------------------------------------------------------------------------
 # 辅助转换：领域对象 -> schema
 # ---------------------------------------------------------------------------
 

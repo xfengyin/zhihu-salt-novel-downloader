@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from .base_exporter import BaseExporter
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class TxtExporter(BaseExporter):
     """TXT文本导出器"""
 
-    def export(self, article_info: ArticleInfo | dict) -> Path:
+    def export(self, article_info: ArticleInfo | dict[str, Any]) -> Path:
         """
         导出为TXT文件
 
@@ -51,7 +52,7 @@ class TxtExporter(BaseExporter):
         self,
         title: str,
         author: str,
-        chapters: list[dict],
+        chapters: list[dict[str, Any]],
     ) -> str:
         """构建TXT内容"""
         lines: list[str] = []

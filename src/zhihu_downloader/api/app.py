@@ -17,8 +17,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from zhihu_downloader.api.errors import ProblemException, problem_handler
+from zhihu_downloader.api.routers.api_keys import router as api_keys_router
+from zhihu_downloader.api.routers.auth import router as auth_router
+from zhihu_downloader.api.routers.books import router as books_router
 from zhihu_downloader.api.routers.download import router as download_router
+from zhihu_downloader.api.routers.plugins import router as plugins_router
 from zhihu_downloader.api.routers.shelf import router as shelf_router
+from zhihu_downloader.api.routers.users import router as users_router
 from zhihu_downloader.api.tasks import TaskManager
 from zhihu_downloader.services.download_service import DownloadService
 from zhihu_downloader.services.shelf_service import ShelfService
@@ -145,6 +151,12 @@ def create_app(config: Config | None = None) -> FastAPI:
             },
         )
 
+    @app.exception_handler(ProblemException)
+    async def problem_exception_handler(
+        request: Request, exc: ProblemException
+    ) -> JSONResponse:
+        return await problem_handler(request, exc)
+
     @app.exception_handler(Exception)
     async def general_exception_handler(
         request: Request, exc: Exception
@@ -172,7 +184,12 @@ def create_app(config: Config | None = None) -> FastAPI:
     # ------------------------------------------------------------------
     # 路由注册
     # ------------------------------------------------------------------
+    app.include_router(auth_router, prefix="/api")
+    app.include_router(api_keys_router, prefix="/api")
+    app.include_router(books_router, prefix="/api")
     app.include_router(download_router, prefix="/api")
+    app.include_router(plugins_router, prefix="/api")
     app.include_router(shelf_router, prefix="/api")
+    app.include_router(users_router, prefix="/api")
 
     return app

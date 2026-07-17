@@ -143,7 +143,7 @@ class EpubExporter(BaseExporter):
             epub_chapters.append(placeholder_ch)
 
         book.toc = tuple(epub_chapters)
-        book.spine = ["nav"] + epub_chapters
+        book.spine = ["nav", *epub_chapters]
 
         book.add_item(epub.EpubNcx())
 

@@ -106,7 +106,7 @@ def with_trace_id(func: Callable[P, T]) -> Callable[P, T]:
         @functools.wraps(func)
         async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
             with trace_context(new_trace_id()):
-                return await func(*args, **kwargs)  # type: ignore[misc]
+                return await func(*args, **kwargs)
 
         return async_wrapper  # type: ignore[return-value]
 

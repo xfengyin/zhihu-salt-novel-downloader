@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from enum import Enum
+from typing import ClassVar
 
 
 class ChapterType(str, Enum):
@@ -18,13 +19,13 @@ class ChapterType(str, Enum):
 class ChapterClassifier:
     """章节分类器"""
 
-    EXTRA_PATTERNS: list[re.Pattern[str]] = [
+    EXTRA_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"番外|外传|特别篇|extra|番·|附录"),
         re.compile(r"第.*?番外"),
         re.compile(r"\【番外\】|\[番外\]"),
     ]
 
-    AUTHOR_NOTE_PATTERNS: list[re.Pattern[str]] = [
+    AUTHOR_NOTE_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"作者说|作者的话|作者留言"),
         re.compile(r"完结感言|完本感言"),
         re.compile(r"感谢|致谢"),
