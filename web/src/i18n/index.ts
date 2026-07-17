@@ -1,12 +1,23 @@
+/**
+ * 国际化配置
+ *
+ * 支持中文/英文，自动检测浏览器语言，
+ * 持久化到 localStorage，与 Zustand settings 同步
+ */
+
 import i18n from 'i18next'
+import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
+import { useAppStore } from '@/store/appStore'
+
 const resources = {
-  zh: {
+  'zh-CN': {
     translation: {
       app: {
         title: '知乎盐选小说下载器',
         subtitle: '异步并发下载 · 多格式导出 · 断点续传',
+        version: '版本',
       },
       nav: {
         home: '首页',
@@ -14,6 +25,8 @@ const resources = {
         library: '书架',
         tasks: '任务中心',
         settings: '设置',
+        login: '登录',
+        logout: '退出',
       },
       home: {
         welcome: '欢迎使用',
@@ -32,16 +45,31 @@ const resources = {
         activeTasks: '进行中任务',
       },
       download: {
+        title: '下载',
         url: '小说链接',
-        urlPlaceholder: '请输入知乎盐选小说链接',
+        urlPlaceholder: '请输入知乎盐选小说链接（每行一个）',
         outputDir: '输出目录',
         format: '输出格式',
         maxConcurrent: '最大并发数',
-        rateLimit: '请求间隔(秒)',
+        rateLimit: '请求间隔（秒）',
         cleanContent: '清理无关内容',
         resume: '断点续传',
+        updateCheck: '检查更新',
+        listOnly: '仅列出章节',
         startDownload: '开始下载',
         downloadProgress: '下载进度',
+        progress: '进度',
+        completed: '已完成',
+        failed: '失败',
+        pending: '等待中',
+        running: '运行中',
+        cancelled: '已取消',
+        startTime: '开始时间',
+        traceId: '追踪ID',
+        copyTraceId: '复制追踪ID',
+        cancel: '取消任务',
+        cookieFile: 'Cookie 文件',
+        uploadCookie: '上传 Cookie',
       },
       library: {
         title: '我的书架',
@@ -52,16 +80,26 @@ const resources = {
         format: '格式',
         size: '大小',
         downloadedAt: '下载时间',
+        addBook: '添加书籍',
+        addBookDesc: '输入知乎盐选小说链接',
+        add: '添加',
+        clean: '清空书架',
+        cleanConfirm: '确认清空书架？',
+        cleanConfirmDesc: '此操作不可恢复',
+        stats: '统计',
+        total: '总书籍数',
+        inProgress: '进行中',
+        completed: '已完成',
       },
       tasks: {
         title: '任务中心',
         empty: '暂无任务',
         status: {
           pending: '等待中',
-          downloading: '下载中',
-          exporting: '导出中',
+          running: '下载中',
           completed: '已完成',
-          error: '失败',
+          failed: '失败',
+          cancelled: '已取消',
         },
         progress: '进度',
         startTime: '开始时间',
@@ -69,6 +107,8 @@ const resources = {
         cancel: '取消',
         retry: '重试',
         viewDetails: '查看详情',
+        refresh: '刷新',
+        total: '总计',
       },
       settings: {
         title: '设置',
@@ -82,14 +122,47 @@ const resources = {
         defaultOutputDir: '默认输出目录',
         defaultFormat: '默认格式',
         maxConcurrent: '最大并发数',
-        rateLimit: '请求间隔(秒)',
+        rateLimit: '请求间隔（秒）',
         cleanContent: '清理无关内容',
         resume: '断点续传',
         advanced: '高级设置',
         apiBaseUrl: 'API 基础地址',
-        timeout: '请求超时(秒)',
+        proxy: '代理',
+        proxyEnabled: '启用代理',
+        proxyUrl: '代理地址',
+        telemetry: '遥测',
+        enableTelemetry: '启用遥测',
+        notifications: '通知',
+        enableNotifications: '启用桌面通知',
         save: '保存设置',
         saved: '设置已保存',
+        reset: '恢复默认',
+        about: '关于',
+      },
+      plugins: {
+        title: '插件管理',
+        empty: '暂无可用插件',
+        name: '插件名称',
+        version: '版本',
+        domains: '支持域名',
+        enabled: '已启用',
+        enable: '启用',
+        disable: '停用',
+      },
+      auth: {
+        login: '登录',
+        register: '注册',
+        email: '邮箱',
+        password: '密码',
+        confirmPassword: '确认密码',
+        emailPlaceholder: '请输入邮箱',
+        passwordPlaceholder: '请输入密码',
+        submit: '提交',
+        noAccount: '还没有账号？',
+        hasAccount: '已有账号？',
+        loginSuccess: '登录成功',
+        registerSuccess: '注册成功',
+        logoutSuccess: '已退出登录',
       },
       common: {
         success: '成功',
@@ -105,14 +178,28 @@ const resources = {
         date: '日期',
         status: '状态',
         viewAll: '查看全部',
+        save: '保存',
+        edit: '编辑',
+        close: '关闭',
+        copy: '复制',
+        copied: '已复制',
+        refresh: '刷新',
+        enable: '启用',
+        disable: '停用',
+        add: '添加',
+        remove: '移除',
+        yes: '是',
+        no: '否',
+        unknown: '未知',
       },
     },
   },
-  en: {
+  'en-US': {
     translation: {
       app: {
         title: 'Zhihu Yanxuan Novel Downloader',
-        subtitle: 'Async Concurrent Download · Multi-format Export · Resume Support',
+        subtitle: 'Async Concurrent · Multi-format · Resume Support',
+        version: 'Version',
       },
       nav: {
         home: 'Home',
@@ -120,6 +207,8 @@ const resources = {
         library: 'Library',
         tasks: 'Tasks',
         settings: 'Settings',
+        login: 'Login',
+        logout: 'Logout',
       },
       home: {
         welcome: 'Welcome',
@@ -138,16 +227,31 @@ const resources = {
         activeTasks: 'Active Tasks',
       },
       download: {
+        title: 'Download',
         url: 'Novel URL',
-        urlPlaceholder: 'Enter Zhihu Yanxuan novel URL',
+        urlPlaceholder: 'Enter Zhihu Yanxuan novel URL (one per line)',
         outputDir: 'Output Directory',
         format: 'Output Format',
         maxConcurrent: 'Max Concurrent',
-        rateLimit: 'Request Interval(sec)',
+        rateLimit: 'Request Interval (sec)',
         cleanContent: 'Clean Content',
         resume: 'Resume Download',
+        updateCheck: 'Check Updates',
+        listOnly: 'List Chapters Only',
         startDownload: 'Start Download',
         downloadProgress: 'Download Progress',
+        progress: 'Progress',
+        completed: 'Completed',
+        failed: 'Failed',
+        pending: 'Pending',
+        running: 'Running',
+        cancelled: 'Cancelled',
+        startTime: 'Start Time',
+        traceId: 'Trace ID',
+        copyTraceId: 'Copy Trace ID',
+        cancel: 'Cancel Task',
+        cookieFile: 'Cookie File',
+        uploadCookie: 'Upload Cookie',
       },
       library: {
         title: 'My Library',
@@ -158,16 +262,26 @@ const resources = {
         format: 'Format',
         size: 'Size',
         downloadedAt: 'Downloaded At',
+        addBook: 'Add Book',
+        addBookDesc: 'Enter Zhihu Yanxuan novel URL',
+        add: 'Add',
+        clean: 'Clean Library',
+        cleanConfirm: 'Confirm to clean library?',
+        cleanConfirmDesc: 'This action cannot be undone',
+        stats: 'Statistics',
+        total: 'Total Books',
+        inProgress: 'In Progress',
+        completed: 'Completed',
       },
       tasks: {
         title: 'Task Center',
         empty: 'No tasks',
         status: {
           pending: 'Pending',
-          downloading: 'Downloading',
-          exporting: 'Exporting',
+          running: 'Running',
           completed: 'Completed',
-          error: 'Failed',
+          failed: 'Failed',
+          cancelled: 'Cancelled',
         },
         progress: 'Progress',
         startTime: 'Start Time',
@@ -175,6 +289,8 @@ const resources = {
         cancel: 'Cancel',
         retry: 'Retry',
         viewDetails: 'View Details',
+        refresh: 'Refresh',
+        total: 'Total',
       },
       settings: {
         title: 'Settings',
@@ -188,14 +304,47 @@ const resources = {
         defaultOutputDir: 'Default Output Directory',
         defaultFormat: 'Default Format',
         maxConcurrent: 'Max Concurrent',
-        rateLimit: 'Request Interval(sec)',
+        rateLimit: 'Request Interval (sec)',
         cleanContent: 'Clean Content',
         resume: 'Resume Download',
         advanced: 'Advanced',
         apiBaseUrl: 'API Base URL',
-        timeout: 'Request Timeout(sec)',
+        proxy: 'Proxy',
+        proxyEnabled: 'Enable Proxy',
+        proxyUrl: 'Proxy URL',
+        telemetry: 'Telemetry',
+        enableTelemetry: 'Enable Telemetry',
+        notifications: 'Notifications',
+        enableNotifications: 'Enable Desktop Notifications',
         save: 'Save Settings',
         saved: 'Settings saved',
+        reset: 'Reset to Default',
+        about: 'About',
+      },
+      plugins: {
+        title: 'Plugin Manager',
+        empty: 'No plugins available',
+        name: 'Plugin Name',
+        version: 'Version',
+        domains: 'Supported Domains',
+        enabled: 'Enabled',
+        enable: 'Enable',
+        disable: 'Disable',
+      },
+      auth: {
+        login: 'Login',
+        register: 'Register',
+        email: 'Email',
+        password: 'Password',
+        confirmPassword: 'Confirm Password',
+        emailPlaceholder: 'Enter email',
+        passwordPlaceholder: 'Enter password',
+        submit: 'Submit',
+        noAccount: "Don't have an account?",
+        hasAccount: 'Already have an account?',
+        loginSuccess: 'Login successful',
+        registerSuccess: 'Registration successful',
+        logoutSuccess: 'Logged out',
       },
       common: {
         success: 'Success',
@@ -211,18 +360,44 @@ const resources = {
         date: 'Date',
         status: 'Status',
         viewAll: 'View All',
+        save: 'Save',
+        edit: 'Edit',
+        close: 'Close',
+        copy: 'Copy',
+        copied: 'Copied',
+        refresh: 'Refresh',
+        enable: 'Enable',
+        disable: 'Disable',
+        add: 'Add',
+        remove: 'Remove',
+        yes: 'Yes',
+        no: 'No',
+        unknown: 'Unknown',
       },
     },
   },
 }
 
-i18n.use(initReactI18next).init({
-  resources,
-  lng: 'zh',
-  fallbackLng: 'zh',
-  interpolation: {
-    escapeValue: false,
-  },
+void i18n
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    resources,
+    fallbackLng: 'zh-CN',
+    supportedLngs: ['zh-CN', 'en-US'],
+    interpolation: { escapeValue: false },
+    detection: {
+      order: ['localStorage', 'navigator', 'htmlTag'],
+      caches: ['localStorage'],
+      lookupLocalStorage: 'zhihu-language',
+    },
+  })
+
+// 监听 Zustand 语言变化，同步到 i18next
+useAppStore.subscribe((state) => {
+  if (i18n.language !== state.settings.language) {
+    void i18n.changeLanguage(state.settings.language)
+  }
 })
 
 export default i18n

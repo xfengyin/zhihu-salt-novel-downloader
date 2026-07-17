@@ -10,6 +10,7 @@ import asyncio
 import sys
 
 import click
+import uvicorn
 
 from zhihu_downloader.auth.browser_cookie import BrowserCookieFetcher
 from zhihu_downloader.auth.cookie_manager import CookieManager
@@ -90,6 +91,33 @@ def download_command(
             resume=resume,
             update_check=update_check,
         )
+    )
+
+
+@cli.command(name="serve", help="启动 HTTP API 服务（供前端 / 桌面端调用）")
+@click.option("--host", "-h", default="0.0.0.0", help="监听地址")
+@click.option("--port", "-p", default=3000, type=int, help="监听端口")
+@click.option("--reload", is_flag=True, help="开发模式：热重载")
+@click.option("--workers", default=1, type=int, help="工作进程数")
+def serve_command(
+    host: str,
+    port: int,
+    reload: bool,
+    workers: int,
+) -> None:
+    """启动 FastAPI 服务"""
+    click.echo(f"🚀 启动 HTTP API 服务: http://{host}:{port}")
+    click.echo(f"   API 文档: http://{host}:{port}/docs")
+    click.echo(f"   OpenAPI: http://{host}:{port}/openapi.json")
+    click.echo("   按 Ctrl+C 停止服务")
+    uvicorn.run(
+        "zhihu_downloader.api.app:create_app",
+        host=host,
+        port=port,
+        reload=reload,
+        workers=workers,
+        factory=True,
+        log_level="info",
     )
 
 
