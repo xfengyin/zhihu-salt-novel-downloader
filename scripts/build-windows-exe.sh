@@ -171,23 +171,39 @@ ${WINE} dist/zhihu-downloader.exe --help 2>&1 | head -10
 # 生成说明文件
 cat > dist/README-使用说明.txt <<'README_EOF'
 =================================================
-  知乎盐选小说下载器 v3.0.0 - Windows 可执行程序
+  知乎盐选小说下载器 v3.1.0 - Windows 可执行程序
 =================================================
 
 【文件说明】
   zhihu-downloader.exe   主程序（单文件，无需安装 Python）
 
-【快速开始】
-  1. 打开 CMD 或 PowerShell
-  2. 切换到本目录
-  3. 运行：
+【🌟 最简单的使用方式】
+  直接双击 zhihu-downloader.exe 即可！
+  程序会自动：
+    1. 启动 Web 服务（默认端口 3000）
+    2. 打开默认浏览器访问 Web 界面
+    3. 在浏览器中即可使用全部功能（下载、书架、设置）
 
-     zhihu-downloader.exe --help              查看帮助
-     zhihu-downloader.exe download --help     下载命令帮助
-     zhihu-downloader.exe serve --help        启动API服务帮助
-     zhihu-downloader.exe shelf --help        书架管理帮助
+  关闭服务：关闭弹出的命令行窗口，或按 Ctrl+C
 
-【常用命令】
+【快速开始（命令行模式）】
+
+  # 查看所有命令
+  zhihu-downloader.exe --help
+
+  # 双击启动 = 等同于
+  zhihu-downloader.exe serve
+
+  # 启动 Web 服务（不自动打开浏览器）
+  zhihu-downloader.exe serve --no-browser
+
+  # 指定端口
+  zhihu-downloader.exe serve --port 8080
+
+  # 仅本机访问（更安全）
+  zhihu-downloader.exe serve --host 127.0.0.1
+
+【常用下载命令】
 
   # 下载单本小说（Markdown 格式）
   zhihu-downloader.exe download -u "https://www.zhihu.com/market/book/12345" -f md
@@ -201,15 +217,18 @@ cat > dist/README-使用说明.txt <<'README_EOF'
   # 断点续传
   zhihu-downloader.exe download -u "https://www.zhihu.com/market/book/12345" --resume
 
-  # 启动 HTTP API 服务（供 Web 前端调用）
-  zhihu-downloader.exe serve --host 0.0.0.0 --port 3000
-
   # 查看书架
   zhihu-downloader.exe shelf --list
+
+【访问地址（启动 serve 后）】
+  Web 界面: http://127.0.0.1:3000
+  API 文档: http://127.0.0.1:3000/docs
+  OpenAPI:  http://127.0.0.1:3000/openapi.json
 
 【环境要求】
   - Windows 10/11 64位
   - 无需安装 Python（已打包）
+  - 首次运行如果被杀毒软件拦截，请添加信任
 
 【合规声明】
   本工具仅限用于已购买内容的个人离线阅读。

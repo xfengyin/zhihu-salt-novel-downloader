@@ -5,16 +5,21 @@
 - 添加 CORS 中间件（白名单）与 traceId 中间件（纯 ASGI，不缓冲 SSE）
 - 注册全局异常处理器，统一返回 {success, message, trace_id}
 - 初始化 app.state 单例（Config / TaskManager / DownloadService / ShelfService）
+- 挂载前端 SPA 静态资源（生产模式 / 打包模式）
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import sys
 import uuid
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from zhihu_downloader.api.errors import ProblemException, problem_handler
@@ -34,6 +39,44 @@ from zhihu_downloader.utils.config import Config
 logger = logging.getLogger(__name__)
 
 VERSION = "2.1.0"
+
+
+def _find_web_dist() -> Path | None:
+    """查找前端静态资源目录
+
+    按优先级查找：
+    1. PyInstaller 打包模式：_MEIPASS/web_dist
+    2. 开发模式：项目根目录下的 web/dist
+    3. 安装模式：包目录同级 ../web/dist 或环境变量 ZHIHU_WEB_DIST
+
+    Returns:
+        前端 dist 目录路径，找不到返回 None
+    """
+    candidates: list[Path] = []
+
+    # 1. PyInstaller 打包模式（sys._MEIPASS 是解压临时目录）
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "web_dist")
+
+    # 2. 环境变量覆盖
+    env_path = os.environ.get("ZHIHU_WEB_DIST")
+    if env_path:
+        candidates.append(Path(env_path))
+
+    # 3. 开发模式：从当前文件向上查找 web/dist
+    #    src/zhihu_downloader/api/app.py → 向上 4 级到项目根目录
+    dev_root = Path(__file__).resolve().parents[4]
+    candidates.append(dev_root / "web" / "dist")
+    # 也可能是相对运行目录
+    candidates.append(Path.cwd() / "web" / "dist")
+    candidates.append(Path.cwd() / "dist")
+
+    for candidate in candidates:
+        if candidate.is_dir() and (candidate / "index.html").exists():
+            return candidate
+
+    return None
 
 # CORS 白名单 - vite 开发服务器及常见前端本地地址
 CORS_ORIGINS = [
@@ -191,5 +234,49 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.include_router(plugins_router, prefix="/api")
     app.include_router(shelf_router, prefix="/api")
     app.include_router(users_router, prefix="/api")
+
+    # ------------------------------------------------------------------
+    # 前端 SPA 静态资源托管
+    # ------------------------------------------------------------------
+    web_dist = _find_web_dist()
+    if web_dist:
+        logger.info("前端静态资源目录: %s", web_dist)
+
+        # 挂载 /assets 静态资源（JS/CSS/图片）
+        assets_dir = web_dist / "assets"
+        if assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        # SPA fallback：所有非 /api、非 /docs 的 GET 请求返回 index.html
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa_fallback(full_path: str, request: Request) -> FileResponse:
+            """SPA 前端路由 fallback
+
+            非静态资源且非 API 的请求统一返回 index.html，
+            由前端 React Router 处理客户端路由。
+            """
+            # 排除 API 与文档路径
+            if full_path.startswith(("api/", "docs", "openapi", "redoc")):
+                return JSONResponse(
+                    status_code=404,
+                    content={"success": False, "message": "Not Found"},
+                )
+
+            # 优先尝试返回具体静态文件
+            candidate = web_dist / full_path
+            if full_path and candidate.is_file():
+                return FileResponse(str(candidate))
+
+            # SPA fallback：返回 index.html
+            index_path = web_dist / "index.html"
+            if index_path.exists():
+                return FileResponse(str(index_path))
+
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "前端资源未找到"},
+            )
+    else:
+        logger.warning("未找到前端静态资源目录，仅提供 API 服务")
 
     return app
