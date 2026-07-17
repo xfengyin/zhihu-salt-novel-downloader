@@ -1,0 +1,162 @@
+# ============================================================================
+# GitHub Actions - 自动构建 Windows exe 并发布 Release
+# ============================================================================
+# 触发条件：
+#   1. 推送 v* 标签 → 构建并发布到 GitHub Release
+#   2. 手动触发 → 仅构建，上传 artifact
+# ============================================================================
+
+name: Build Windows EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12.8"
+
+jobs:
+  build-windows:
+    name: 构建 Windows EXE (交叉编译)
+    runs-on: ubuntu-latest
+    steps:
+      # ----------------------------------------------------------------
+      # 1. 检出代码
+      # ----------------------------------------------------------------
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------
+      # 2. 安装 Wine64
+      # ----------------------------------------------------------------
+      - name: 安装 Wine64
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends wine64 unzip
+
+      # ----------------------------------------------------------------
+      # 3. 初始化 Wine 前缀
+      # ----------------------------------------------------------------
+      - name: 初始化 Wine
+        env:
+          WINEPREFIX: /home/runner/.wine64
+          WINEARCH: win64
+          WINEDEBUG: -all
+        run: |
+          /usr/lib/wine/wine64 wineboot --init 2>&1 | tail -5
+
+      # ----------------------------------------------------------------
+      # 4. 下载 Windows Python
+      # ----------------------------------------------------------------
+      - name: 缓存 Windows Python
+        id: cache-python
+        uses: actions/cache@v4
+        with:
+          path: /opt/python-win
+          key: python-win-${{ env.PYTHON_VERSION }}-v3
+
+      - name: 下载 Windows Python
+        if: steps.cache-python.outputs.cache-hit != 'true'
+        env:
+          WINEPREFIX: /home/runner/.wine64
+          WINEARCH: win64
+          WINEDEBUG: -all
+        run: |
+          mkdir -p /opt/python-win && cd /opt/python-win
+          curl -fsSL -o python.zip \
+            "https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-embed-amd64.zip"
+          unzip -q python.zip -d python312 && rm python.zip
+          printf 'python312.zip\n.\nLib\\site-packages\n\nimport site\n' > python312/python312._pth
+          curl -fsSL -o get-pip.py https://bootstrap.pypa.io/get-pip.py
+          /usr/lib/wine/wine64 python312/python.exe get-pip.py
+          rm get-pip.py
+
+      # ----------------------------------------------------------------
+      # 5. 安装依赖
+      # ----------------------------------------------------------------
+      - name: 安装 Python 依赖
+        env:
+          WINEPREFIX: /home/runner/.wine64
+          WINEARCH: win64
+          WINEDEBUG: -all
+        run: |
+          /usr/lib/wine/wine64 /opt/python-win/python312/python.exe -m pip install \
+            -i https://pypi.tuna.tsinghua.edu.cn/simple \
+            --upgrade pip wheel setuptools
+          /usr/lib/wine/wine64 /opt/python-win/python312/python.exe -m pip install \
+            -i https://pypi.tuna.tsinghua.edu.cn/simple \
+            "aiohttp>=3.9.0" "beautifulsoup4>=4.12.0" "click>=8.1.0" \
+            "ebooklib>=0.18" "lxml>=4.9.0" "pyyaml>=6.0" "requests>=2.31.0" \
+            "pillow>=10.0.0" "fastapi>=0.109.0" "uvicorn[standard]>=0.27.0" \
+            "pydantic>=2.5.0" "pydantic-settings>=2.1.0" "sqlalchemy>=2.0.0" \
+            "pluggy>=1.6.0" "nats-py>=2.15.0" "python-jose[cryptography]>=3.5.0" \
+            "passlib[bcrypt]>=1.7.4" "httpx>=0.28.0" "python-multipart>=0.0.3" \
+            "email-validator>=2.3.0" "aiosqlite" "pyinstaller>=6.0.0"
+
+      # ----------------------------------------------------------------
+      # 6. 执行 PyInstaller 构建
+      # ----------------------------------------------------------------
+      - name: PyInstaller 构建
+        env:
+          WINEPREFIX: /home/runner/.wine64
+          WINEARCH: win64
+          WINEDEBUG: -all
+          PYTHONIOENCODING: utf-8
+        run: |
+          rm -rf build dist
+          /usr/lib/wine/wine64 /opt/python-win/python312/python.exe -m PyInstaller \
+            pyinstaller.spec --clean -y --log-level WARN
+          ls -lh dist/
+
+      # ----------------------------------------------------------------
+      # 7. 验证 exe
+      # ----------------------------------------------------------------
+      - name: 验证 exe
+        env:
+          WINEPREFIX: /home/runner/.wine64
+          WINEARCH: win64
+          WINEDEBUG: -all
+          PYTHONIOENCODING: utf-8
+        run: |
+          file dist/zhihu-downloader.exe
+          /usr/lib/wine/wine64 dist/zhihu-downloader.exe --help 2>&1 | head -10
+
+      # ----------------------------------------------------------------
+      # 8. 打包 zip
+      # ----------------------------------------------------------------
+      - name: 打包 zip
+        run: |
+          cp web/src-tauri/icons/icon.ico dist/ 2>/dev/null || true
+          cd dist && zip -9 ../zhihu-downloader-windows-x64.zip \
+            zhihu-downloader.exe icon.ico
+          cd ..
+          ls -lh zhihu-downloader-windows-x64.zip
+
+      # ----------------------------------------------------------------
+      # 9. 上传 artifact
+      # ----------------------------------------------------------------
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhihu-downloader-windows-x64
+          path: |
+            dist/zhihu-downloader.exe
+            zhihu-downloader-windows-x64.zip
+          retention-days: 30
+
+      # ----------------------------------------------------------------
+      # 10. 发布到 GitHub Release（仅 tag 触发）
+      # ----------------------------------------------------------------
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            zhihu-downloader-windows-x64.zip
+            dist/zhihu-downloader.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: false

@@ -1,0 +1,66 @@
+# ============================================================================
+# Dockerfile - 在 Linux 上交叉编译构建 Windows exe
+# ============================================================================
+# 用法：
+#   docker build -t zhihu-builder -f Dockerfile.build-windows .
+#   docker run --rm -v $(pwd)/dist:/app/dist zhihu-builder
+#
+# 产物：/app/dist/zhihu-downloader.exe
+# ============================================================================
+
+FROM ubuntu:24.04
+
+LABEL maintainer="xfengyin"
+LABEL description="知乎盐选小说下载器 - Windows exe 交叉编译构建环境"
+
+# 避免交互式安装
+ENV DEBIAN_FRONTEND=noninteractive \
+    WINEPREFIX=/root/.wine64 \
+    WINEDEBUG=-all \
+    WINEARCH=win64 \
+    PYTHONIOENCODING=utf-8 \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wine64 \
+        unzip \
+        curl \
+        ca-certificates \
+        && rm -rf /var/lib/apt/lists/*
+
+# 初始化 Wine
+RUN /usr/lib/wine/wine64 wineboot --init 2>&1 | tail -5 || true
+
+# 下载并配置 Windows Python 3.12
+ENV PYTHON_DIR=/opt/python-win/python312
+RUN mkdir -p /opt/python-win && \
+    cd /opt/python-win && \
+    curl -fsSL -o python.zip \
+        "https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip" && \
+    unzip -q python.zip -d python312 && \
+    rm python.zip && \
+    printf 'python312.zip\n.\nLib\\site-packages\n\nimport site\n' > \
+        python312/python312._pth && \
+    curl -fsSL -o get-pip.py https://bootstrap.pypa.io/get-pip.py && \
+    /usr/lib/wine/wine64 python312/python.exe get-pip.py && \
+    rm get-pip.py
+
+# 安装 Python 依赖
+RUN /usr/lib/wine/wine64 /opt/python-win/python312/python.exe -m pip install \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        --upgrade pip wheel setuptools && \
+    /usr/lib/wine/wine64 /opt/python-win/python312/python.exe -m pip install \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple \
+        "aiohttp>=3.9.0" "beautifulsoup4>=4.12.0" "click>=8.1.0" \
+        "ebooklib>=0.18" "lxml>=4.9.0" "pyyaml>=6.0" "requests>=2.31.0" \
+        "pillow>=10.0.0" "fastapi>=0.109.0" "uvicorn[standard]>=0.27.0" \
+        "pydantic>=2.5.0" "pydantic-settings>=2.1.0" "sqlalchemy>=2.0.0" \
+        "pluggy>=1.6.0" "nats-py>=2.15.0" "python-jose[cryptography]>=3.5.0" \
+        "passlib[bcrypt]>=1.7.4" "httpx>=0.28.0" "python-multipart>=0.0.3" \
+        "email-validator>=2.3.0" "aiosqlite" "pyinstaller>=6.0.0"
+
+WORKDIR /app
+
+# 构建入口
+CMD ["bash", "scripts/build-windows-exe.sh"]
