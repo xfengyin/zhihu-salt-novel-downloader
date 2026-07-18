@@ -1,9 +1,10 @@
 # zhihu-salt-novel-downloader
 
-知乎盐选小说下载器 - 异步并发下载 + 多格式导出 + 断点续传 + 桌面端
+知乎盐选小说下载器 - 异步并发下载 + 多格式导出 + 断点续传 + 三端桌面应用
 
-> 完整覆盖 **Web 前端 + FastAPI 后端 + Tauri 桌面端** 的全栈实现。
+> 完整覆盖 **Web 前端 + FastAPI 后端 + Tauri 三端桌面应用** 的全栈实现。
 > 遵循 **开闭原则 / 依赖倒置 / 单一职责** 等企业级工程规范。
+> 云端 CI：推送 `v*` 标签自动构建并发布 5 个平台包到 GitHub Releases。
 
 ## 功能特性
 
@@ -26,7 +27,20 @@
 - **CLI**: `zhihu-downloader download/shelf/serve` 命令行
 - **HTTP API**: FastAPI + OpenAPI 3.1 + RFC 7807 错误模型
 - **Web 前端**: React 18 + TypeScript + Tailwind + Radix UI（现代化 SPA）
-- **桌面端**: Tauri 2.x + Rust 后端（跨平台：Windows / macOS / Linux）
+- **桌面端**: Tauri 2.x + Rust 后端（跨平台：**Windows / macOS / Linux**）
+- **PyInstaller EXE**: 单文件 Windows 可执行，双击即用（已含 Web 界面）
+
+### 三端下载（GitHub Releases）
+
+前往 [Releases](https://github.com/xfengyin/zhihu-salt-novel-downloader/releases) 下载最新版：
+
+| 端 | 平台 | 文件 |
+|----|------|------|
+| **Windows 桌面** | Win 10/11 x64 | `zhihu-downloader-desktop_x.y.z_x64-setup.exe` (NSIS) / `.msi` |
+| **macOS 桌面** | Intel + Apple Silicon | `zhihu-downloader-desktop_x.y.z_universal.dmg` |
+| **Linux 桌面** | Ubuntu/Debian x64 | `zhihu-downloader-desktop_x.y.z_amd64.deb` / `.AppImage` |
+| **Windows 简易版** | Win 10/11 x64 | `zhihu-downloader-windows-x64.zip`（单文件 EXE） |
+| **Web 静态** | 任意静态服务器 | `zhihu-web-static.zip` |
 
 ## 技术栈
 
@@ -411,3 +425,43 @@ uv run zhihu-downloader download --url <URL> --resume
 ## License
 
 MIT License
+
+## 云端发布（CI/CD）
+
+项目集成 GitHub Actions，推送 `v*` 标签即可自动构建并发布 5 个平台包到 GitHub Releases。
+
+### 触发发布
+
+```bash
+# 1. 提交代码
+git add . && git commit -m "release: v3.1.0"
+
+# 2. 创建 tag
+git tag v3.1.0
+
+# 3. 推送 tag 触发 CI
+git push origin v3.1.0
+```
+
+### 工作流清单
+
+| Workflow | 触发 | 产物 |
+|----------|------|------|
+| [build-tauri.yml](.github/workflows/build-tauri.yml) | `v*` tag / 手动 | Windows .msi+.nsis、macOS universal .dmg、Linux .deb+.AppImage、Web 静态 zip |
+| [build-windows.yml](.github/workflows/build-windows.yml) | `v*` tag / 手动 | Windows 单文件 EXE（PyInstaller） |
+
+### Runner 策略
+
+- **Windows**: `windows-latest`（原生编译 Tauri，无需 Wine）
+- **macOS**: `macos-latest`（universal-apple-darwin 目标，一次产出 Intel + Apple Silicon）
+- **Linux**: `ubuntu-22.04`（Tauri 2.x 完整系统依赖：webkit2gtk-4.1、gtk-3、librsvg2 等）
+
+### 加速手段
+
+- `Swatinem/rust-cache@v2` 缓存 cargo 依赖
+- `actions/setup-node@v4` + `cache: 'npm'` 缓存 npm 依赖
+- `actions/cache@v4` 缓存 Windows Python 解释器
+
+### 手动触发
+
+进入 GitHub → Actions → 选择 workflow → Run workflow，无需 tag 即可构建（产物仅上传 artifact，不发 Release）。

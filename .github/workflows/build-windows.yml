@@ -130,8 +130,14 @@ jobs:
       - name: 打包 zip
         run: |
           cp web/src-tauri/icons/icon.ico dist/ 2>/dev/null || true
+          cat > dist/README-使用说明.txt <<'README_EOF'
+          知乎盐选小说下载器 v3.1.0 - Windows 单文件 EXE
+
+          【最简使用】直接双击 zhihu-downloader.exe，自动启动 Web 服务并打开浏览器。
+          访问地址：http://127.0.0.1:3000
+          README_EOF
           cd dist && zip -9 ../zhihu-downloader-windows-x64.zip \
-            zhihu-downloader.exe icon.ico
+            zhihu-downloader.exe icon.ico README-使用说明.txt
           cd ..
           ls -lh zhihu-downloader-windows-x64.zip
 

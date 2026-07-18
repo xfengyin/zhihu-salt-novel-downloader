@@ -1,0 +1,312 @@
+# ============================================================================
+# GitHub Actions - Tauri 三端桌面应用跨平台构建并发布
+# ============================================================================
+# 触发条件：
+#   1. 推送 v* 标签 → 构建并发布到 GitHub Release
+#   2. 手动触发 → 仅构建，上传 artifact
+#
+# 产物矩阵（5 个平台包）：
+#   - Windows x64: .msi + .nsis
+#   - macOS Intel: .dmg
+#   - macOS Apple Silicon: .dmg
+#   - Linux x64: .deb + .AppImage
+#
+# 设计原则：
+#   - 每个平台用 native runner，避免交叉编译依赖地狱
+#   - macOS 用 universal-apple-darwin 目标，一次产出通用包
+#   - 缓存 cargo / node_modules / Rust 依赖加速构建
+# ============================================================================
+
+name: Build Tauri Desktop (三端)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20"
+  RUST_VERSION: "1.82"
+  TAURI_VERSION: "2"
+
+jobs:
+  # ----------------------------------------------------------------------
+  # 1. 构建 Windows x64（.msi + .nsis）
+  # ----------------------------------------------------------------------
+  build-windows:
+    name: Windows x64 (.msi + .nsis)
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: 缓存 Rust 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: 安装前端依赖
+        working-directory: web
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: web
+        run: npm run build
+
+      - name: 构建 Tauri (Windows)
+        working-directory: web/src-tauri
+        run: |
+          cargo install tauri-cli --version "^${{ env.TAURI_VERSION }}" --locked || true
+          cargo tauri build --target x86_64-pc-windows-msvc --bundles msi nsis
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: 收集产物
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          cp web/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi release-artifacts/ 2>/dev/null || true
+          cp web/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe release-artifacts/ 2>/dev/null || true
+          ls -lh release-artifacts/
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-windows-x64
+          path: release-artifacts/*
+          retention-days: 30
+
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          fail_on_unmatched_files: false
+
+  # ----------------------------------------------------------------------
+  # 2. 构建 macOS（Intel + Apple Silicon universal）
+  # ----------------------------------------------------------------------
+  build-macos:
+    name: macOS Universal (.dmg)
+    runs-on: macos-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: 缓存 Rust 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: 安装前端依赖
+        working-directory: web
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: web
+        run: npm run build
+
+      - name: 构建 Tauri (macOS universal)
+        working-directory: web/src-tauri
+        run: |
+          cargo install tauri-cli --version "^${{ env.TAURI_VERSION }}" --locked || true
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo tauri build --target universal-apple-darwin --bundles dmg
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: 收集产物
+        run: |
+          mkdir -p release-artifacts
+          cp web/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg release-artifacts/ 2>/dev/null || true
+          ls -lh release-artifacts/
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-macos-universal
+          path: release-artifacts/*
+          retention-days: 30
+
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          fail_on_unmatched_files: false
+
+  # ----------------------------------------------------------------------
+  # 3. 构建 Linux x64（.deb + .AppImage）
+  # ----------------------------------------------------------------------
+  build-linux:
+    name: Linux x64 (.deb + .AppImage)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # Tauri 2 Linux 平台依赖（libwebkit2gtk-4.1, libgtk, librsvg2 等）
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            patchelf
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: 缓存 Rust 依赖
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: 安装前端依赖
+        working-directory: web
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: web
+        run: npm run build
+
+      - name: 构建 Tauri (Linux)
+        working-directory: web/src-tauri
+        run: |
+          cargo install tauri-cli --version "^${{ env.TAURI_VERSION }}" --locked || true
+          cargo tauri build --target x86_64-unknown-linux-gnu --bundles deb appimage
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: 收集产物
+        run: |
+          mkdir -p release-artifacts
+          cp web/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb release-artifacts/ 2>/dev/null || true
+          cp web/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage release-artifacts/ 2>/dev/null || true
+          ls -lh release-artifacts/
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-linux-x64
+          path: release-artifacts/*
+          retention-days: 30
+
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          fail_on_unmatched_files: false
+
+  # ----------------------------------------------------------------------
+  # 4. 构建 Web 静态资源（用于自托管部署）
+  # ----------------------------------------------------------------------
+  build-web:
+    name: Web 静态资源
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: web
+        run: npm ci
+
+      - name: 构建前端
+        working-directory: web
+        run: npm run build
+
+      - name: 打包 Web 静态资源
+        run: |
+          cd web/dist
+          zip -9 ../../zhihu-web-static.zip -r .
+          cd ../..
+          ls -lh zhihu-web-static.zip
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-static
+          path: zhihu-web-static.zip
+          retention-days: 30
+
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: zhihu-web-static.zip
+          fail_on_unmatched_files: false
+
+  # ----------------------------------------------------------------------
+  # 5. 三端构建完成通知
+  # ----------------------------------------------------------------------
+  notify-complete:
+    name: 全部完成
+    needs: [build-windows, build-macos, build-linux, build-web]
+    runs-on: ubuntu-22.04
+    if: always()
+    steps:
+      - name: 汇总构建结果
+        run: |
+          echo "## 三端桌面构建报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 平台 | 产物 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Windows x64 | .msi + .nsis | ${{ needs.build-windows.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| macOS Universal | .dmg | ${{ needs.build-macos.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linux x64 | .deb + .AppImage | ${{ needs.build-linux.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Web 静态 | .zip | ${{ needs.build-web.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**触发原因**: ${{ github.event_name }} (${{ github.ref }})" >> $GITHUB_STEP_SUMMARY
+          echo "**commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
