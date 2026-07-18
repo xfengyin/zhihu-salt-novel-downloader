@@ -62,6 +62,14 @@ class ArticleParser:
     """文章解析器"""
 
     CHAPTER_ID_PATTERN: re.Pattern[str] = re.compile(r"/answer/(\d+)|/article/(\d+)")
+    # 扩展：识别盐选市场和移动端付费章节
+    # 移动端 section 路径不带 /section/ 关键词，直接 /manuscript/paid_column/<col>/<sec>
+    PAID_COLUMN_PATTERN: re.Pattern[str] = re.compile(
+        r"/paid_column/(\d+)(?:/section/(\d+))?"
+    )
+    MANUSCRIPT_PATTERN: re.Pattern[str] = re.compile(
+        r"/manuscript/paid_column/(\d+)(?:/(\d+))?"
+    )
     TITLE_PATTERN: re.Pattern[str] = re.compile(r"<title>(.*?)</title>")
 
     def __init__(self) -> None:
@@ -222,10 +230,37 @@ class ArticleParser:
         return chapters
 
     def _extract_chapter_id(self, href: str) -> str:
-        """从URL提取章节ID"""
+        """从URL提取章节ID
+
+        支持以下格式：
+        - /answer/123                      -> "123"
+        - /article/456                     -> "456"
+        - /market/paid_column/123          -> "col-123"
+        - /market/paid_column/123/section/456 -> "sec-456"
+        - /manuscript/paid_column/123      -> "col-123"  (移动端)
+        - /manuscript/paid_column/123/section/456 -> "sec-456"  (移动端)
+
+        若都不匹配则返回 URL 末段（保留原始 ID 字符串）。
+        """
         if not href:
             return ""
 
+        # 优先识别付费章节
+        manuscript_match = self.MANUSCRIPT_PATTERN.search(href)
+        if manuscript_match:
+            column_id, section_id = manuscript_match.groups()
+            if section_id:
+                return f"sec-{section_id}"
+            return f"col-{column_id}"
+
+        paid_match = self.PAID_COLUMN_PATTERN.search(href)
+        if paid_match:
+            column_id, section_id = paid_match.groups()
+            if section_id:
+                return f"sec-{section_id}"
+            return f"col-{column_id}"
+
+        # 公开回答 / 专栏
         match = self.CHAPTER_ID_PATTERN.search(href)
         if match:
             return match.group(1) or match.group(2)
