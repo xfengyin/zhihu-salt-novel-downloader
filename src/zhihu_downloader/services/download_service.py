@@ -214,6 +214,59 @@ class DownloadService:
             await downloader.close()
 
     # ------------------------------------------------------------------
+    # URL 提示：识别不同类型 URL 并给出友好说明
+    # ------------------------------------------------------------------
+
+    def _emit_url_hint(self, url: str) -> list[ProgressEvent]:
+        """根据 URL 类型发出提示信息
+
+        解决 issue #2：用户传入「仅 APP 内阅读」类 URL 时，
+        工具原本会静默下载空内容（页面无正文）。
+        现在会先在终端 / SSE 流中给出明确说明。
+        """
+        # 懒加载：避免循环依赖
+        from zhihu_downloader.plugins.sources.zhihu_salt import ZhihuSaltSource
+
+        plugin = ZhihuSaltSource()
+        url_type = plugin.detect_url_type(url)
+
+        if url_type == "unknown":
+            return [ProgressEvent.info(
+                f"提示：{url} 不属于知乎系域名，可能无法解析"
+            )]
+
+        if plugin.is_app_only(url):
+            return [
+                ProgressEvent.info(
+                    f"检测到「仅 APP 内阅读」类 URL: {url}"
+                ),
+                ProgressEvent.info(
+                    "该类型内容需要 mst/xsec 签名（知乎移动端 API 协议），"
+                    "当前版本暂未实现签名算法，无法直接下载正文。"
+                ),
+                ProgressEvent.info(
+                    "建议方案：① 使用浏览器从网页版登录后导出；"
+                    "② 等待后续版本支持；"
+                    "③ 在 GitHub 提交 issue 告知需求优先级。"
+                ),
+            ]
+
+        if url_type == "section":
+            return [ProgressEvent.info(
+                f"检测到盐选单章节链接：{url}（仅下载该章节，不获取全书目录）"
+            )]
+
+        if url_type == "column":
+            return [ProgressEvent.info(
+                f"检测到盐选付费专栏：{url}（需要 Cookie 中含有有效 z_c0）"
+            )]
+
+        if url_type == "answer":
+            return [ProgressEvent.info(f"检测到公开回答：{url}")]
+
+        return []
+
+    # ------------------------------------------------------------------
     # 内部编排
     # ------------------------------------------------------------------
 
@@ -230,6 +283,12 @@ class DownloadService:
     ) -> AsyncIterator[ProgressEvent]:
         """下载单本书的完整编排流程"""
         try:
+            # ------------------------------------------------------------------
+            # 0. 友好提示：识别「仅 APP 内阅读」类 URL，提前给出说明
+            # ------------------------------------------------------------------
+            for hint_event in self._emit_url_hint(url):
+                yield hint_event
+
             yield ProgressEvent.info(f"正在获取内容: {url}")
 
             html = await downloader.fetch(url)

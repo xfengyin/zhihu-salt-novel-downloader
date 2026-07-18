@@ -116,3 +116,63 @@ class TestArticleInfo:
         assert data["title"] == "测试小说"
         assert data["author"] == "测试作者"
         assert data["chapter_count"] == 1
+
+
+class TestPaidColumnIdExtraction:
+    """issue #2：盐选付费专栏与移动端 manuscript 章节 ID 提取"""
+
+    @pytest.fixture
+    def parser(self) -> ArticleParser:
+        return ArticleParser()
+
+    def test_paid_column_book(self, parser: ArticleParser) -> None:
+        """盐选付费专栏（市场）整书入口"""
+        chapter_id = parser._extract_chapter_id(
+            "/market/paid_column/1738171776255660032"
+        )
+        assert chapter_id == "col-1738171776255660032"
+
+    def test_paid_column_section(self, parser: ArticleParser) -> None:
+        """盐选付费单章节（市场 section）"""
+        chapter_id = parser._extract_chapter_id(
+            "/market/paid_column/1864671270639165440/section/2037497376336819335"
+        )
+        assert chapter_id == "sec-2037497376336819335"
+
+    def test_manuscript_book(self, parser: ArticleParser) -> None:
+        """移动端 manuscript 专栏入口"""
+        chapter_id = parser._extract_chapter_id(
+            "/manuscript/paid_column/1738171776255660032"
+        )
+        assert chapter_id == "col-1738171776255660032"
+
+    def test_manuscript_section(self, parser: ArticleParser) -> None:
+        """移动端 manuscript 单章节"""
+        chapter_id = parser._extract_chapter_id(
+            "/manuscript/paid_column/1738171776255660032/1822560690113748992"
+        )
+        assert chapter_id == "sec-1822560690113748992"
+
+    def test_full_url_paid_column(self, parser: ArticleParser) -> None:
+        """完整 URL 同样能识别"""
+        chapter_id = parser._extract_chapter_id(
+            "https://www.zhihu.com/market/paid_column/1864671270639165440/section/2037497376336819335"
+        )
+        assert chapter_id == "sec-2037497376336819335"
+
+    def test_full_url_manuscript(self, parser: ArticleParser) -> None:
+        """完整移动端 URL"""
+        chapter_id = parser._extract_chapter_id(
+            "https://story.zhihu.com/manuscript/paid_column/1738171776255660032/1822560690113748992"
+        )
+        assert chapter_id == "sec-1822560690113748992"
+
+    def test_answer_still_works(self, parser: ArticleParser) -> None:
+        """回归：answer 路径仍正确"""
+        chapter_id = parser._extract_chapter_id("/answer/12345")
+        assert chapter_id == "12345"
+
+    def test_article_still_works(self, parser: ArticleParser) -> None:
+        """回归：article 路径仍正确"""
+        chapter_id = parser._extract_chapter_id("/article/12345")
+        assert chapter_id == "12345"
