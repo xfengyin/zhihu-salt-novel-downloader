@@ -15,7 +15,8 @@
 - **多格式导出**: 支持 `.txt`、`.md`、`.epub`、`.mobi` 四种格式
 - **智能分类**: 自动识别正文、番外、作者说
 - **内容清洗**: 自动移除广告、水印、推广语
-- **认证支持**: 支持 Cookie/z_c0 token 认证
+- **认证支持**: 支持扫码登录（推荐）/ Cookie / z_c0 token 认证
+- **扫码登录**: Web UI 一键扫码，自动保存 Cookie（`z_c0` / `zse_ck`），下载时自动使用
 - **User-Agent 轮换**: 模拟移动端请求
 - **批量下载**: 支持从文件读取多个URL批量下载
 - **更新检测**: 自动检测章节更新，增量下载
@@ -311,6 +312,8 @@ zhihu-salt-novel-downloader/
 | 认证 | `POST /api/auth/login` | 登录 |
 | 认证 | `POST /api/auth/register` | 注册 |
 | 认证 | `POST /api/auth/refresh` | 刷新 token |
+| 认证 | `POST /api/auth/qrcode` | 创建扫码登录会话（返回二维码） |
+| 认证 | `GET /api/auth/qrcode/{ticket}` | 轮询扫码确认状态，成功后保存 Cookie |
 | 用户 | `GET /api/users/me` | 当前用户 |
 | 下载 | `POST /api/downloads` | 启动下载 |
 | 下载 | `GET /api/downloads` | 任务列表 |
@@ -376,6 +379,41 @@ npm run tauri:dev
 ./scripts/build-desktop.sh --windows
 ```
 
+## 扫码登录
+
+扫码登录是 Web UI 推荐的登录方式，无需手动导出 Cookie。登录成功后会自动保存知乎
+Cookie（`z_c0` / `zse_ck`），下载时自动使用。
+
+### Web UI
+
+1. 启动后端与前端（见上方「快速开始」）；
+2. 打开 Web 界面，点击「扫码登录」按钮；
+3. 页面展示二维码后，用知乎 App 扫码并确认登录；
+4. 页面自动轮询扫码状态，登录成功后 Cookie 自动保存，即可开始下载。
+
+### CLI
+
+扫码登录主要在 Web UI 中使用。CLI 仍支持以下认证方式：
+
+```bash
+# 从 Cookie JSON 文件加载
+uv run zhihu-downloader download --url <URL> --cookie-file cookies.json
+
+# 直接传入 z_c0 token
+uv run zhihu-downloader download --url <URL> --token "<z_c0>"
+
+# 自动从浏览器读取 Cookie
+uv run zhihu-downloader download --url <URL> --auto-cookie
+```
+
+### 常见问题
+
+- **二维码过期**：知乎登录二维码有时效，过期后刷新页面或重新点击「扫码登录」获取新二维码。
+- **登录后仍返回 403**：请确认该账号具备盐选阅读权限（已购买或开通会员）；若网页端本身无权限，
+  工具也无法下载付费正文。同时确保已保存的 Cookie 含有效 `z_c0` 与 `zse_ck`。
+- **Cookie 保存位置**：扫码登录成功后，Cookie 由后端保存在本地（`z_c0` / `zse_ck`），
+  后续下载会自动读取，无需重复扫码。Cookie 属敏感信息，请勿外泄；具体文件位置见后端日志与配置。
+
 ## 使用示例
 
 ### 1. CLI 下载
@@ -404,9 +442,10 @@ uv run zhihu-downloader download --url <URL> --resume
 1. 启动后端：`./scripts/dev.sh --backend`
 2. 启动前端：`./scripts/dev.sh --frontend`
 3. 访问 <http://localhost:5173>
-4. 在「下载」页粘贴小说 URL，选择格式后点击开始
-5. 实时查看 SSE 推送的下载进度
-6. 下载完成后在「书架」页管理书籍
+4. 首次使用先点击「扫码登录」，用知乎 App 扫码确认（见上方「扫码登录」）
+5. 在「下载」页粘贴小说 URL，选择格式后点击开始
+6. 实时查看 SSE 推送的下载进度
+7. 下载完成后在「书架」页管理书籍
 
 ### 3. 桌面端
 
