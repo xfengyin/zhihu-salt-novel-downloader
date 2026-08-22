@@ -15,6 +15,20 @@ URL 分类逻辑与运行时提示实现于 `src/zhihu_downloader/plugins/source
 | ⚠️ 有条件支持 | 需要有效 Cookie 或对应网页入口，否则可能为空或触发反爬 |
 | ❌ 暂不支持 | 需要移动端签名（`mst`/`xsec`），网页端无合法入口 |
 
+## 认证方式
+
+扫码登录为 **推荐** 方式，无需手动导出 Cookie。
+
+| 认证方式 | 使用入口 | 支持状态 | 说明 |
+|----------|----------|----------|------|
+| 扫码登录 | Web UI「扫码登录」按钮 | ✅ 推荐 | 用知乎 App 扫码确认，自动保存 `z_c0` / `zse_ck`，下载时自动使用 |
+| Cookie 文件 | CLI `--cookie-file` / 配置 `auth.cookie_file` | ✅ 支持 | 手动导出浏览器 Cookie JSON |
+| 自动读 Cookie | CLI `--auto-cookie` | ✅ 支持 | 自动从 Chrome / Firefox 读取知乎 Cookie |
+| z_c0 token | CLI `--token` / 配置 `auth.z_c0_token` | ✅ 支持 | 直接传入 z_c0，优先级高于 Cookie 文件 |
+
+> 盐选付费内容（`market/paid_column` 等）需要有效 Cookie；公开回答与专栏文章通常无需登录。
+> 若登录后仍 403，请确认账号具备盐选阅读权限（见 README「扫码登录 → 常见问题」）。
+
 ## URL 类型 × 支持状态
 
 | URL 类型 | 示例 | 支持状态 | 说明 | 替代方案 |
@@ -94,4 +108,6 @@ URL 分类逻辑与运行时提示实现于 `src/zhihu_downloader/plugins/source
 - URL 分类与提示逻辑：`src/zhihu_downloader/plugins/sources/zhihu_salt.py`
 - 提示文案：`src/zhihu_downloader/services/download_service.py`（`_emit_url_hint`）
 - 章节 ID 解析：`src/zhihu_downloader/parsers/article_parser.py`
+- 认证 / Cookie 管理：`src/zhihu_downloader/auth/cookie_manager.py`、`src/zhihu_downloader/auth/browser_cookie.py`
+- 扫码登录接口：`src/zhihu_downloader/api/routers/auth.py`（`/api/auth/qrcode` 系列）
 - 单元测试：`tests/test_sources.py`

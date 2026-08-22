@@ -11,6 +11,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { QrLoginDialog } from '@/components/QrLoginDialog'
 import { useAppStore } from '@/store/appStore'
 
 const navItems = [
@@ -104,6 +105,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           sidebarCollapsed ? 'ml-16' : 'ml-64'
         }`}
       >
+        <header className="sticky top-0 z-40 flex items-center justify-end border-b border-border/50 bg-background/80 px-4 py-3 backdrop-blur-lg md:px-8">
+          <QrLoginDialog />
+        </header>
         <div className="p-4 md:p-8">{children}</div>
       </main>
     </div>
