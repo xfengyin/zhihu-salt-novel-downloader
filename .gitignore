@@ -75,7 +75,6 @@ Thumbs.db
 output/
 *.epub
 *.txt
-*.md
 *.mobi
 
 # uv
