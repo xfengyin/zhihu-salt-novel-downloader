@@ -2,8 +2,9 @@
 # GitHub Actions - Tauri 三端桌面应用跨平台构建并发布
 # ============================================================================
 # 触发条件：
-#   1. 推送 v* 标签 → 构建并发布到 GitHub Release
-#   2. 手动触发 → 仅构建，上传 artifact
+#   - 仅手动触发（workflow_dispatch），构建并上传 artifact
+#   - Tauri 桌面端暂不稳定，v* 标签统一由 release.yml 负责 CLI Release
+#   - 待 Tauri 构建链稳定后，可恢复 push tags: ['v*'] 自动发布
 #
 # 产物矩阵（5 个平台包）：
 #   - Windows x64: .msi + .nsis
@@ -20,9 +21,6 @@
 name: Build Tauri Desktop (三端)
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 env:

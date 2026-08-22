@@ -27,6 +27,8 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
+  # Windows 默认编码为 cp1252，PyInstaller spec 中的中文 print 需要 UTF-8 输出
+  PYTHONIOENCODING: "utf-8"
 
 # 权限最小化：默认只读，创建 Release 的任务单独升级写入权限
 permissions:
