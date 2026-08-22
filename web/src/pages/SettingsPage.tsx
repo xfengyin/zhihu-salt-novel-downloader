@@ -4,9 +4,10 @@
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, FolderOpen, RotateCcw, Save, Info } from 'lucide-react'
+import { Settings as SettingsIcon, FolderOpen, RotateCcw, Save, Info, QrCode } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { QrLoginDialog } from '@/components/QrLoginDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -73,6 +74,22 @@ export function SettingsPage() {
         <h1 className="text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
         <p className="text-muted-foreground mt-1">个性化你的下载体验</p>
       </div>
+
+      {/* 知乎账号 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <QrCode className="h-5 w-5 text-primary" />
+            {t('auth.qrLogin')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">{t('auth.qrLoginDesc')}</p>
+            <QrLoginDialog />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 外观 */}
       <Card>
