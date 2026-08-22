@@ -1,6 +1,6 @@
 """知乎盐选小说下载器 - 企业级异步并发下载工具"""
 
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 __author__ = "xfengyin"
 __license__ = "MIT"
 
