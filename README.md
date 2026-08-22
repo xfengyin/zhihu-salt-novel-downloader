@@ -313,7 +313,7 @@ zhihu-salt-novel-downloader/
 | 认证 | `POST /api/auth/register` | 注册 |
 | 认证 | `POST /api/auth/refresh` | 刷新 token |
 | 认证 | `POST /api/auth/qrcode` | 创建扫码登录会话（返回二维码） |
-| 认证 | `GET /api/auth/qrcode/{ticket}` | 轮询扫码确认状态，成功后保存 Cookie |
+| 认证 | `GET /api/auth/qrcode/{token}/status` | 轮询扫码确认状态，成功后保存 Cookie |
 | 用户 | `GET /api/users/me` | 当前用户 |
 | 下载 | `POST /api/downloads` | 启动下载 |
 | 下载 | `GET /api/downloads` | 任务列表 |
