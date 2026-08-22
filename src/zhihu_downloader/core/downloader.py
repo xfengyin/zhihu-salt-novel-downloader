@@ -276,7 +276,9 @@ class AsyncDownloader:
                 return cached
 
         msg = f"获取失败 {url}，已重试 {max_retries} 次"
-        raise type(last_error)(msg) if last_error else RuntimeError(msg)
+        if last_error is not None:
+            raise RuntimeError(msg) from last_error
+        raise RuntimeError(msg)
 
     async def _fetch_once(
         self,
@@ -295,15 +297,15 @@ class AsyncDownloader:
             request_proxy = proxy or self._get_random_proxy()
 
             try:
-                async with self._circuit_breaker.call(
+                response = await self._circuit_breaker.call(
                     session.get,
                     url,
                     headers=request_headers,
                     proxy=request_proxy,
-                ) as response:
-                    await self._handle_response(response, url)
-                    content = await response.text()
-                    return content
+                )
+                await self._handle_response(response, url)
+                content = await response.text()
+                return content
 
             except aiohttp.ClientError as e:
                 logger.error("请求失败 %s: %s", url, e)
