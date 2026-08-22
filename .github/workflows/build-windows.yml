@@ -1,17 +1,15 @@
 # ============================================================================
-# GitHub Actions - 自动构建 Windows exe 并发布 Release
+# GitHub Actions - 手动构建 Windows exe（Wine 交叉编译）
 # ============================================================================
 # 触发条件：
-#   1. 推送 v* 标签 → 构建并发布到 GitHub Release
-#   2. 手动触发 → 仅构建，上传 artifact
+#   - 仅手动触发（workflow_dispatch），构建并上传 artifact
+#   - v* 标签发布已由 .github/workflows/release.yml 统一负责
+#     （原生 windows-latest 构建 Windows CLI），本文件保留用于 Wine 交叉编译调试
 # ============================================================================
 
-name: Build Windows EXE
+name: Build Windows EXE (Wine)
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 env:

@@ -1,0 +1,174 @@
+# ============================================================================
+# GitHub Actions - CLI 发布流水线（issue #3）
+# ============================================================================
+# 触发条件：
+#   1. 推送 v* 标签（如 v3.1.0）→ 构建两个平台的 CLI 产物并发布到 GitHub Release
+#   2. 手动触发（workflow_dispatch）→ 仅构建并上传 artifact，便于在合并前验证
+#
+# 产物矩阵（本次只发 CLI 产物，Tauri GUI 走独立流水线 build-tauri.yml）：
+#   - Linux x86_64  : zhihu-downloader-<version>-linux-x64.tar.gz   （ubuntu-24.04 + Python 3.12）
+#   - Windows x64    : zhihu-downloader-<version>-windows-x64.zip   （windows-2022 + Python 3.12）
+#
+# 设计要点：
+#   - 每个平台用 native runner 直接跑 PyInstaller（Windows 不交叉编译，避免 Wine 依赖地狱）
+#   - 依赖来源单一：`pip install .` 按 pyproject.toml 安装全部运行时依赖 + pyinstaller
+#   - 复用仓库现有 pyinstaller.spec（onefile，入口 src/zhihu_downloader/__main__.py）
+#   - GUI 前端资源不在本流水线构建，spec 检测不到 web/dist 时会降级为「纯 CLI」并打印警告
+#   - 权限最小化：顶层只给 contents: read，仅 release 任务升级为 contents: write
+# ============================================================================
+
+name: Release CLI (Linux + Windows)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+
+# 权限最小化：默认只读，创建 Release 的任务单独升级写入权限
+permissions:
+  contents: read
+
+jobs:
+  # ----------------------------------------------------------------------
+  # 1. 构建 Linux x86_64 可执行文件
+  # ----------------------------------------------------------------------
+  build-linux:
+    name: Linux x64 CLI
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
+
+      - name: 安装依赖（pyproject.toml 全部运行时依赖 + PyInstaller）
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.0.0"
+          python -m pip install .
+
+      - name: PyInstaller 打包
+        run: |
+          pyinstaller pyinstaller.spec --clean -y --log-level WARN
+          ls -lh dist/
+
+      - name: 验证 CLI 可运行
+        run: |
+          file dist/zhihu-downloader
+          dist/zhihu-downloader --help | head -20
+
+      - name: 打包分发产物（含版本号与平台）
+        shell: bash
+        run: |
+          # tag 触发用标签版本；手动触发用 dev-<短sha> 作为占位，避免分支名含斜杠等非法字符
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="dev-${GITHUB_SHA::8}"
+          fi
+          mkdir -p release
+          cp dist/zhihu-downloader release/zhihu-downloader
+          cp README.md release/README.txt
+          tar -czf "zhihu-downloader-${VERSION}-linux-x64.tar.gz" -C release .
+          ls -lh "zhihu-downloader-${VERSION}-linux-x64.tar.gz"
+          echo "ARTIFACT=zhihu-downloader-${VERSION}-linux-x64.tar.gz" >> "$GITHUB_ENV"
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhihu-downloader-linux-x64
+          path: ${{ env.ARTIFACT }}
+          retention-days: 30
+
+  # ----------------------------------------------------------------------
+  # 2. 构建 Windows x64 可执行文件
+  # ----------------------------------------------------------------------
+  build-windows:
+    name: Windows x64 CLI
+    runs-on: windows-2022
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
+
+      - name: 安装依赖（pyproject.toml 全部运行时依赖 + PyInstaller）
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.0.0"
+          python -m pip install .
+
+      - name: PyInstaller 打包
+        shell: pwsh
+        run: |
+          pyinstaller pyinstaller.spec --clean -y --log-level WARN
+          Get-ChildItem dist | Select-Object Name, Length
+
+      - name: 验证 CLI 可运行
+        shell: pwsh
+        run: |
+          dist\zhihu-downloader.exe --help | Select-Object -First 20
+
+      - name: 打包分发产物（含版本号与平台）
+        shell: pwsh
+        run: |
+          # tag 触发用标签版本；手动触发用 dev-<短sha> 作为占位
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}" -replace '^v', ''
+          } else {
+            $version = "dev-$("${{ github.sha }}".Substring(0, 8))"
+          }
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item dist\zhihu-downloader.exe release\
+          Copy-Item web\src-tauri\icons\icon.ico release\ 2>$null
+          Copy-Item README.md release\README.txt
+          Compress-Archive -Path release\* -DestinationPath "zhihu-downloader-$version-windows-x64.zip"
+          Get-ChildItem "zhihu-downloader-$version-windows-x64.zip" | Select-Object Name, Length
+          "ARTIFACT=zhihu-downloader-$version-windows-x64.zip" >> $env:GITHUB_ENV
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhihu-downloader-windows-x64
+          path: ${{ env.ARTIFACT }}
+          retention-days: 30
+
+  # ----------------------------------------------------------------------
+  # 3. 创建 / 更新 GitHub Release（仅 tag 触发时）
+  # ----------------------------------------------------------------------
+  release:
+    name: 发布 GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/v')
+    # 仅此任务需要写权限（创建 Release + 上传资产），
+    # 使用 softprops/action-gh-release@v2 内部自动取用 GITHUB_TOKEN。
+    permissions:
+      contents: write
+    steps:
+      - name: 下载全部产物
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: 创建 / 更新 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false

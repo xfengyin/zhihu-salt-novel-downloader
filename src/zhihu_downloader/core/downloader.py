@@ -6,6 +6,7 @@ import asyncio
 import logging
 import random
 import time
+import urllib.parse
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 
@@ -14,6 +15,7 @@ import aiohttp
 from .cache import ResponseCache
 from .circuit_breaker import CircuitBreaker, CircuitBreakerOpenError
 from .rate_limiter import RateLimiter
+from .zhihu_signature import XZSE_93_VERSION, generate_zhihu_sign
 
 if TYPE_CHECKING:
     from aiohttp import ClientResponse
@@ -289,7 +291,7 @@ class AsyncDownloader:
 
         async with self._semaphore:
             session = await self._get_session()
-            request_headers = self._build_headers(headers)
+            request_headers = self._build_headers(headers, url)
             request_proxy = proxy or self._get_random_proxy()
 
             try:
@@ -404,13 +406,42 @@ class AsyncDownloader:
                         new_concurrent,
                     )
 
-    def _build_headers(self, custom_headers: dict[str, str] | None = None) -> dict[str, str]:
-        """构建请求头，随机选择UA"""
+    def _build_headers(
+        self,
+        custom_headers: dict[str, str] | None = None,
+        url: str | None = None,
+    ) -> dict[str, str]:
+        """构建请求头，随机选择UA，并为知乎系请求追加签名头（可被自定义头覆盖）"""
         headers = self.DEFAULT_HEADERS.copy()
         headers["User-Agent"] = random.choice(self._ua_pool)
+        if url:
+            headers.update(self._build_signature_headers(url))
         if custom_headers:
             headers.update(custom_headers)
         return headers
+
+    def _build_signature_headers(self, url: str) -> dict[str, str]:
+        """为知乎系请求计算 x-zse-96 / x-zst-81 / x-zse-93 签名请求头。
+
+        仅当请求 host 属于知乎系域名且 cookies 含 d_c0 时返回签名头；
+        否则返回空字典。
+        """
+        if not self._is_zhihu_url(url) or "d_c0" not in self._cookies:
+            return {}
+        signature = generate_zhihu_sign(url, self._cookies)
+        if not signature:
+            return {}
+        signature["x-zse-93"] = XZSE_93_VERSION
+        return signature
+
+    @staticmethod
+    def _is_zhihu_url(url: str) -> bool:
+        """判断 URL 是否属于知乎系域名（zhihu.com 及其子域）。"""
+        try:
+            host = (urllib.parse.urlparse(url).hostname or "").lower()
+        except ValueError:
+            return False
+        return host == "zhihu.com" or host.endswith(".zhihu.com")
 
     def _get_random_proxy(self) -> str | None:
         """从代理池随机选择代理"""
