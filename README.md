@@ -42,6 +42,35 @@
 | **Windows 简易版** | Win 10/11 x64 | `zhihu-downloader-windows-x64.zip`（单文件 EXE） |
 | **Web 静态** | 任意静态服务器 | `zhihu-web-static.zip` |
 
+## 支持范围与限制
+
+### 支持的 URL
+
+| URL 类型 | 示例 | 说明 |
+|----------|------|------|
+| 公开回答 | `https://www.zhihu.com/question/<id>/answer/<id>` | 默认最佳支持，直接解析正文 |
+| 专栏文章 | `https://zhuanlan.zhihu.com/p/<id>` | 公开专栏，直接解析正文 |
+| 盐选专栏 | `https://www.zhihu.com/market/paid_column/<col_id>` | 下载整本书目录，需 Cookie 含有效 `z_c0` |
+| 盐选单章节 | `https://www.zhihu.com/market/paid_column/<col_id>/section/<sec_id>` | 仅下载该章节，需有效 `z_c0` |
+| story.zhihu.com 非仅APP形式 | `https://story.zhihu.com/manuscript/paid_column/...` | 若同一内容在网页端有对应 market URL 且可读，则可用 |
+
+### 暂不支持
+
+- **「仅 APP 内阅读」盐选小说**：`story.zhihu.com/manuscript/paid_column/...` 中只能在知乎 APP 内打开的内容。
+  原因：接口请求需要 APP 级 `mst` / `xsec` 签名与设备信息（如 `x-zse-96`），
+  网页端没有合法入口，当前版本无法直接下载正文（传入此类 URL 会给出明确提示而非静默失败）。
+
+### 替代方案
+
+1. **优先找同一内容的 web market URL**：将 `story.zhihu.com/manuscript/paid_column/<col_id>`
+   替换为 `https://www.zhihu.com/market/paid_column/<col_id>`（章节同理补 `/section/<sec_id>`），
+   网页端能正常打开并看到正文即可下载。
+2. **使用 APP 内人工方式**：利用知乎 APP 的缓存 / 截图 / 手动复制保存正文，再配合本工具整理导出。
+3. **网页可读但有 zse-ck 反爬**：更新 Cookie（确保含 `z_c0` 与可用的 `zse_ck`），
+   并参考仓库中新增的 `x-zse-96` 签名模块重新生成请求头。
+
+> 完整的「URL 类型 × 支持状态 × 说明 × 替代方案」矩阵见 [docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md)。
+
 ## 技术栈
 
 ### 后端 (Python 3.10+)
