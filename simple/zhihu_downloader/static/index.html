@@ -4,12 +4,85 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>知乎盐选下载器 v4</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main style="font-family: system-ui; max-width: 640px; margin: 4rem auto; padding: 0 1rem;">
-    <h1>知乎盐选下载器 v4</h1>
-    <p>后端已就绪。此处为占位页，扫码登录对话框与下载界面将由 frontend-dev 填充。</p>
-    <p>可用 API：<code>/api/health</code>、<code>/api/qrcode</code>、<code>/api/download</code>、<code>/api/tasks</code>。</p>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true">盐</span>
+        <div class="brand-text">
+          <h1>知乎盐选下载器</h1>
+          <p class="brand-sub">极简 v4 · 扫码登录 · 一键下载</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="cookie-status" class="status-pill status-off">未登录</span>
+        <button id="qr-btn" class="btn btn-primary" type="button">扫码登录</button>
+        <button id="theme-toggle" class="btn btn-icon" type="button" title="切换深浅色" aria-label="切换深浅色">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2 class="card-title">下载盐选</h2>
+      <p class="muted">粘贴知乎盐选文章或专栏链接，选择导出格式后开始下载。</p>
+
+      <form id="download-form" novalidate>
+        <label class="field-label" for="url-input">小说链接</label>
+        <input
+          id="url-input"
+          type="url"
+          placeholder="https://www.zhihu.com/market/paid_column/…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="format-select">导出格式</label>
+            <select id="format-select">
+              <option value="md">Markdown (.md)</option>
+              <option value="txt">纯文本 (.txt)</option>
+              <option value="epub">EPUB (.epub)</option>
+            </select>
+          </div>
+          <div class="field field-grow">
+            <span class="field-label">输出位置</span>
+            <p class="muted output-note">文件会保存到服务器 <code>~/.zhihu_downloader/output</code>，完成后可在下方任务列表直接下载。</p>
+          </div>
+        </div>
+
+        <button id="download-btn" class="btn btn-primary btn-block" type="submit">开始下载</button>
+        <p id="download-msg" class="form-msg" role="status" hidden></p>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">下载任务</h2>
+        <button id="refresh-tasks" class="btn btn-ghost" type="button">刷新</button>
+      </div>
+      <p id="tasks-empty" class="empty">暂无任务，先在上方粘贴链接开始下载吧。</p>
+      <ul id="tasks-list" class="tasks"></ul>
+    </section>
   </main>
+
+  <div id="qr-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+      <button class="modal-close" type="button" data-close aria-label="关闭">×</button>
+      <h2 id="qr-title" class="modal-title">扫码登录</h2>
+      <p class="muted modal-desc">使用知乎 App 扫描二维码，登录后自动保存 Cookie。</p>
+      <div id="qr-body" class="qr-body"></div>
+      <div class="modal-actions">
+        <button id="qr-retry" class="btn btn-outline" type="button" hidden>重新获取二维码</button>
+        <button class="btn btn-ghost" type="button" data-close>关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
