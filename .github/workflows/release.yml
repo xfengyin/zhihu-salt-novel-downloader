@@ -22,7 +22,7 @@ name: Release CLI (Linux + Windows)
 on:
   push:
     tags:
-      - 'v*'
+      - 'v3*'
   workflow_dispatch:
 
 env:
