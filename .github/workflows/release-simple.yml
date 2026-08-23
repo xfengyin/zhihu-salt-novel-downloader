@@ -1,0 +1,174 @@
+# ============================================================================
+# GitHub Actions - 极简 v4 CLI 发布流水线（simple/ 目录）
+# ============================================================================
+# 触发条件：
+#   1. 推送 v4* 标签（如 v4.0.0）→ 构建 Linux/Windows CLI 产物并发布到 GitHub Release
+#   2. 手动触发（workflow_dispatch）→ 仅构建并上传 artifact，便于合并前验证
+#
+# 产物矩阵（只发 CLI；simple/ 的 Web 静态资源已内嵌进 onefile 可执行文件）：
+#   - Linux x86_64 : zhihu-downloader-simple-<version>-linux-x64.tar.gz   (ubuntu-24.04 + Python 3.12)
+#   - Windows x64   : zhihu-downloader-simple-<version>-windows-x64.zip   (windows-2022 + Python 3.12)
+#
+# 设计要点：
+#   - native runner 直接跑 PyInstaller（Windows 不交叉编译）
+#   - 依赖来源单一：`pip install ./simple` 按 simple/pyproject.toml 装全部运行时依赖
+#   - 复用 simple/pyinstaller.spec（onefile，内部生成绝对导入入口，兼容 __main__.py 相对导入）
+#   - PYTHONIOENCODING=utf-8 防 Windows 控制台打印中文报错
+#   - 权限最小化：顶层 contents: read，仅 release job 升级 contents: write
+# ============================================================================
+
+name: Release Simple v4 CLI (Linux + Windows)
+
+on:
+  push:
+    tags:
+      - 'v4*'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  PYTHONIOENCODING: "utf-8"
+
+# 权限最小化：默认只读，创建 Release 的任务单独升级写入权限
+permissions:
+  contents: read
+
+jobs:
+  # ----------------------------------------------------------------------
+  # 1. 构建 Linux x86_64 可执行文件
+  # ----------------------------------------------------------------------
+  build-linux:
+    name: Linux x64 CLI
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: simple/requirements.txt
+
+      - name: 安装依赖（simple 运行时依赖 + PyInstaller）
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.0.0"
+          python -m pip install ./simple
+
+      - name: PyInstaller 打包
+        working-directory: simple
+        run: |
+          pyinstaller pyinstaller.spec --clean -y --log-level WARN
+          ls -lh dist/
+
+      - name: 验证 CLI 可运行
+        run: |
+          file simple/dist/zhihu-downloader
+          simple/dist/zhihu-downloader --help
+
+      - name: 打包分发产物（含版本号与平台）
+        shell: bash
+        run: |
+          # tag 触发用标签版本；手动触发用 dev-<短sha> 作为占位
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="dev-${GITHUB_SHA::8}"
+          fi
+          mkdir -p release
+          cp simple/dist/zhihu-downloader release/zhihu-downloader
+          tar -czf "zhihu-downloader-simple-${VERSION}-linux-x64.tar.gz" -C release .
+          ls -lh "zhihu-downloader-simple-${VERSION}-linux-x64.tar.gz"
+          echo "ARTIFACT=zhihu-downloader-simple-${VERSION}-linux-x64.tar.gz" >> "$GITHUB_ENV"
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhihu-downloader-simple-linux-x64
+          path: ${{ env.ARTIFACT }}
+          retention-days: 30
+
+  # ----------------------------------------------------------------------
+  # 2. 构建 Windows x64 可执行文件
+  # ----------------------------------------------------------------------
+  build-windows:
+    name: Windows x64 CLI
+    runs-on: windows-2022
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: simple/requirements.txt
+
+      - name: 安装依赖（simple 运行时依赖 + PyInstaller）
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.0.0"
+          python -m pip install ./simple
+
+      - name: PyInstaller 打包
+        working-directory: simple
+        shell: pwsh
+        run: |
+          pyinstaller pyinstaller.spec --clean -y --log-level WARN
+          Get-ChildItem dist | Select-Object Name, Length
+
+      - name: 验证 CLI 可运行
+        shell: pwsh
+        run: |
+          simple\dist\zhihu-downloader.exe --help
+
+      - name: 打包分发产物（含版本号与平台）
+        shell: pwsh
+        run: |
+          # tag 触发用标签版本；手动触发用 dev-<短sha> 作为占位
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $version = "${{ github.ref_name }}" -replace '^v', ''
+          } else {
+            $version = "dev-$("${{ github.sha }}".Substring(0, 8))"
+          }
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item simple\dist\zhihu-downloader.exe release\
+          Compress-Archive -Path release\* -DestinationPath "zhihu-downloader-simple-$version-windows-x64.zip"
+          Get-ChildItem "zhihu-downloader-simple-$version-windows-x64.zip" | Select-Object Name, Length
+          "ARTIFACT=zhihu-downloader-simple-$version-windows-x64.zip" >> $env:GITHUB_ENV
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhihu-downloader-simple-windows-x64
+          path: ${{ env.ARTIFACT }}
+          retention-days: 30
+
+  # ----------------------------------------------------------------------
+  # 3. 创建 / 更新 GitHub Release（仅 v4* tag 触发时）
+  # ----------------------------------------------------------------------
+  release:
+    name: 发布 GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/v4')
+    # 仅此任务需要写权限（创建 Release + 上传资产），
+    # softprops/action-gh-release@v2 内部自动取用 GITHUB_TOKEN。
+    permissions:
+      contents: write
+    steps:
+      - name: 下载全部产物
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: 创建 / 更新 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false
