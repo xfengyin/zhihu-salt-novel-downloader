@@ -102,6 +102,15 @@ def cmd_web(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # PyInstaller 冻结的 Windows 程序默认 stdout 可能是 cp1252，
+    # 中文 help 会触发 UnicodeEncodeError；这里强制 UTF-8 输出。
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 
