@@ -1,15 +1,19 @@
-"""命令行入口：qr-login / download / web 三个命令。"""
+"""命令行入口：qr-login / download / web / doctor 四个命令。"""
 
 from __future__ import annotations
 
 import argparse
+import json
+import platform
 import sys
 import tempfile
 import time
 from pathlib import Path
 
+import requests
+
 from . import __version__
-from .client import ZhihuClient, ZhihuError
+from .client import DEFAULT_COOKIE_FILE, ZhihuClient, ZhihuError
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -39,6 +43,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=2.0,
         help="每秒最多请求数（默认 2，最小 0.5），下载时对全部请求生效",
     )
+
+    p_doctor = sub.add_parser("doctor", help="诊断环境/版本/Cookie/限速/网络")
+    p_doctor.add_argument(
+        "--cookie-file",
+        default=None,
+        help="自定义 Cookie 文件路径（默认 ~/.zhihu_downloader/cookies.json）",
+    )
+    p_doctor.add_argument(
+        "--rate-limit",
+        type=float,
+        default=None,
+        help="检查指定的限速值（默认 2 请求/秒）",
+    )
+    p_doctor.add_argument("--no-network", action="store_true", help="跳过网络探测")
+    p_doctor.add_argument("--network-timeout", type=float, default=8.0, help="网络探测超时秒数（默认 8）")
 
     p_web = sub.add_parser("web", help="启动 Web API")
     p_web.add_argument("--host", default="127.0.0.1")
@@ -112,6 +131,85 @@ def cmd_download(client: ZhihuClient, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """诊断命令：检查 Python/系统、版本、Cookie、限速、网络。
+
+    输出 ✅ 健康 / ⚠️ 警告 / ❌ 错误 清单；返回非 0 表示存在错误。
+    无 Cookie 只告警不报错（首次使用属正常状态）。
+    """
+    results: list[tuple[str, str, str]] = []  # (level, 检查项, 说明)
+    icons = {"ok": "✅", "warn": "⚠️", "error": "❌", "info": "ℹ️"}
+
+    results.append(("info", "版本", f"zhihu-downloader {__version__}"))
+
+    # Python / 系统
+    py_ver = sys.version.split()[0]
+    sys_desc = f"Python {py_ver}，{platform.system()} {platform.release()}"
+    if sys.version_info < (3, 10):
+        results.append(("error", "Python/系统", f"{sys_desc}（需要 >= 3.10）"))
+    else:
+        results.append(("ok", "Python/系统", sys_desc))
+
+    # Cookie 文件
+    cookie_file = Path(args.cookie_file) if args.cookie_file else DEFAULT_COOKIE_FILE
+    if not cookie_file.exists():
+        results.append(("warn", "Cookie", f"Cookie 文件不存在: {cookie_file}（请先运行 qr-login）"))
+    else:
+        try:
+            data = json.loads(cookie_file.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("内容不是 JSON 对象")
+        except (OSError, ValueError, json.JSONDecodeError) as e:
+            results.append(("error", "Cookie", f"Cookie 文件无法解析: {cookie_file}（{e}）"))
+        else:
+            missing = [k for k in ("z_c0", "zse_ck") if k not in data]
+            if missing:
+                results.append(
+                    ("warn", "Cookie", f"Cookie 缺少关键字段: {', '.join(missing)}（建议重新 qr-login）")
+                )
+            else:
+                results.append(("ok", "Cookie", f"Cookie 有效（含 z_c0/zse_ck）: {cookie_file}"))
+
+    # 限速设置
+    rate_limit = args.rate_limit if getattr(args, "rate_limit", None) is not None else 2.0
+    if rate_limit <= 0:
+        results.append(("warn", "限速", "限速未启用（rate_limit<=0），建议保持默认 2 请求/秒"))
+    elif rate_limit < 0.5:
+        results.append(("warn", "限速", f"rate_limit={rate_limit} 低于最小建议 0.5，可能触发反爬"))
+    elif rate_limit > 5:
+        results.append(("warn", "限速", f"rate_limit={rate_limit} 偏高（>5），请勿用于规避平台限制"))
+    else:
+        results.append(("ok", "限速", f"rate_limit={rate_limit} 请求/秒（默认 2，合理）"))
+
+    # 网络探测（可选）
+    if args.no_network:
+        results.append(("info", "网络", "已跳过网络探测（--no-network）"))
+    else:
+        try:
+            resp = requests.get(
+                "https://www.zhihu.com",
+                timeout=args.network_timeout,
+                headers={"User-Agent": "Mozilla/5.0 (doctor)"},
+            )
+            if resp.status_code == 200:
+                results.append(("ok", "网络", "www.zhihu.com 可达（HTTP 200）"))
+            else:
+                results.append(("warn", "网络", f"www.zhihu.com 返回 HTTP {resp.status_code}"))
+        except requests.RequestException as e:
+            results.append(("warn", "网络", f"网络探测失败: {e}（离线环境不影响其它检查）"))
+
+    for level, name, msg in results:
+        print(f"{icons[level]} [{name}] {msg}")
+
+    errors = sum(1 for lv, _, _ in results if lv == "error")
+    warns = sum(1 for lv, _, _ in results if lv == "warn")
+    if errors:
+        print(f"\n诊断完成：{errors} 个错误、{warns} 个警告 → 请修复后重试（exit {1 if errors else 0}）", file=sys.stderr)
+    else:
+        print(f"\n诊断完成：{warns} 个警告，无错误。")
+    return 1 if errors else 0
+
+
 def cmd_web(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -139,6 +237,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_qr_login(ZhihuClient())
     if args.command == "download":
         return cmd_download(ZhihuClient(), args)
+    if args.command == "doctor":
+        return cmd_doctor(args)
     if args.command == "web":
         return cmd_web(args)
     parser.error(f"未知命令: {args.command}")

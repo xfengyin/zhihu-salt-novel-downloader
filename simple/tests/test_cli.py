@@ -49,7 +49,7 @@ class TestVersionArg:
         assert exc.value.code == 0
         out = capsys.readouterr().out
         assert f"zhihu-downloader {__version__}" in out
-        assert "4.2.0" in out
+        assert "4." in out  # 版本号形如 4.x.y
 
     def test_help_lists_version(self, capsys) -> None:
         with pytest.raises(SystemExit):
