@@ -274,12 +274,14 @@ English: v4.1.0 adds GitHub Actions CI for the simple package and syncs versioni
 > **M5 更新：准备完成** ✅ —— 执行包已就绪：
 > - 帖子**最终稿**、发布顺序、tracking 表、截图/录屏建议 → [`docs/LAUNCH_PACK.md`](LAUNCH_PACK.md)；
 > - 贡献指南 → `CONTRIBUTING.md`（仓库根目录）。
-> 以下为**待执行的对外动作**（全部材料已备齐，随时可发），每完成一项勾选并记录日期。
+>
+> **M6 更新：发布与资产验证已执行** ✅ —— 详见 [`docs/LAUNCH_LOG.md`](LAUNCH_LOG.md) §1。
+> 以下为**待执行的对外动作**，每完成一项勾选并记录日期。
 
 | # | 动作 | 前置条件 | 状态 | 完成日期 |
 |---|------|----------|------|----------|
-| 1 | 打 tag `v4.2.0` 发布（触发 release-simple.yml） | §0 全绿 | ⬜ 待执行 | |
-| 2 | 发布后验证 Linux/Windows 资产（见 RELEASE_CHECKLIST §7） | 动作 1 | ⬜ 待执行 | |
+| 1 | 打 tag `v4.2.0` 发布（触发 release-simple.yml） | §0 全绿 | ✅ 已执行（Release `v4.2.0` 已存在，两资产 URL 均 HTTP 200） | 2026-08-24 |
+| 2 | 发布后验证 Linux/Windows 资产（见 RELEASE_CHECKLIST §7、LAUNCH_LOG §1） | 动作 1 | ✅ 已执行（下载 + SHA-256 + zip 完整性通过；运行时验证受环境限制待目标环境补跑，见 LAUNCH_LOG §1） | 2026-08-24 |
 | 3 | Show HN 发帖（最终稿见 LAUNCH_PACK §2.1） | 动作 1 完成 | ⬜ 待执行 | |
 | 4 | Reddit r/Python 发帖（最终稿见 LAUNCH_PACK §2.2） | 动作 1 完成 | ⬜ 待执行 | |
 | 5 | Reddit r/selfhosted 发帖（最终稿见 LAUNCH_PACK §2.3） | 动作 1 完成 | ⬜ 待执行 | |

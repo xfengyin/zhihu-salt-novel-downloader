@@ -9,17 +9,20 @@
 
 ## 1. 发布顺序（Playbook）
 
-| 步骤 | 动作 | 工具/位置 | 时机 |
-|------|------|-----------|------|
-| 1 | 打 tag `v4.x.y`（触发 release-simple.yml） | git push tag | 第 1 天上午 |
-| 2 | 验证 Linux/Windows 资产 + Release notes | RELEASE_CHECKLIST §7 | 第 1 天（构建完成后） |
-| 3 | GitHub topics / description SEO 设置 | 仓库 Settings | 第 1 天 |
-| 4 | Show HN 发帖 | news.ycombinator.com | 第 1 天（建议 UTC 13:00–15:00，美东早间） |
-| 5 | Reddit r/Python + r/selfhosted 发帖 | reddit.com | 第 2 天（错开 HN 高峰） |
-| 6 | Awesome 列表投稿（3 个候选） | 各列表 PR/issue | 第 3–5 天 |
-| 7 | 中文社区：掘金 + 知乎（可选 V2EX） | juejin.cn / zhihu.com | 第 4–7 天 |
-| 8 | asciinema 录屏 + 替换 README「模拟」标注 | asciinema.org | 第 2–3 天 |
-| 9 | 每 3 天更新 tracking 表（§4） | 本文件 §4 | 持续 |
+> **状态（M6，v4.2.0）**：步骤 1–2 已执行（2026-08-24），验证明细见
+> [`docs/LAUNCH_LOG.md`](LAUNCH_LOG.md) §1；步骤 3 起为待执行动作。
+
+| 步骤 | 动作 | 工具/位置 | 时机 | 状态 |
+|------|------|-----------|------|------|
+| 1 | 打 tag `v4.2.0`（触发 release-simple.yml） | git push tag | 第 1 天上午 | ✅ 已执行 |
+| 2 | 验证 Linux/Windows 资产 + Release notes | RELEASE_CHECKLIST §7 / LAUNCH_LOG §1 | 第 1 天（构建完成后） | ✅ 已执行（下载+完整性；运行时验证待目标环境） |
+| 3 | GitHub topics / description SEO 设置 | 仓库 Settings | 第 1 天 | ⬜ 待执行 |
+| 4 | Show HN 发帖 | news.ycombinator.com | 第 1 天（建议 UTC 13:00–15:00，美东早间） | ⬜ 待执行 |
+| 5 | Reddit r/Python + r/selfhosted 发帖 | reddit.com | 第 2 天（错开 HN 高峰） | ⬜ 待执行 |
+| 6 | Awesome 列表投稿（3 个候选） | 各列表 PR/issue | 第 3–5 天 | ⬜ 待执行 |
+| 7 | 中文社区：掘金 + 知乎（可选 V2EX） | juejin.cn / zhihu.com | 第 4–7 天 | ⬜ 待执行 |
+| 8 | asciinema 录屏 + 替换 README「模拟」标注 | asciinema.org | 第 2–3 天 | ⬜ 待执行 |
+| 9 | 每 3 天更新 tracking 表（§4 / LAUNCH_LOG §3） | 本文件 §4 / LAUNCH_LOG | 持续 | ⬜ 发帖后执行 |
 
 ---
 
