@@ -34,8 +34,8 @@ Zhihu Salt-Novel Downloader v4 is a minimal downloader that:
 - 🛡️ **Request signing**: Automatically injects the `x-zse-96` signature header to
   reduce the chance of anti-crawling blocks (requires valid cookies).
 - 🌐 **Minimal Web UI** (optional): scan, paste a link, and download from the browser.
-- 🖥️ **Full-featured CLI**: `qr-login` / `download` / `web` subcommands, plus
-  `--version`.
+- 🖥️ **Full-featured CLI**: `qr-login` / `download` / `doctor` / `web` subcommands,
+  plus `--version`.
 - ⚡ **1-minute setup**: Pure Python 3.10+, few dependencies,
   `pip install -r requirements.txt` and go.
 
@@ -87,10 +87,13 @@ python -m zhihu_downloader qr-login
 # 2. Download a salt-novel column / section
 python -m zhihu_downloader download --url <salt-novel-url> --format txt
 
-# 3. Start the Web UI (optional)
+# 3. Diagnose your environment / cookie / network (run this first if something breaks)
+python -m zhihu_downloader doctor
+
+# 4. Start the Web UI (optional)
 python -m zhihu_downloader web
 
-# 4. Show the version
+# 5. Show the version
 python -m zhihu_downloader --version
 ```
 
@@ -167,6 +170,29 @@ Open <http://127.0.0.1:3000> after startup:
 
 > The Web UI static pages are served from `zhihu_downloader/static/`.
 
+### Diagnose (doctor)
+
+```bash
+python -m zhihu_downloader doctor
+```
+
+Prints an environment health checklist (✅ healthy / ⚠️ warning / ❌ error) — the
+first step when something breaks:
+
+- Version and Python/system info;
+- Whether the cookie file exists and contains `z_c0` / `zse_ck` (missing cookies
+  only warn, never crash);
+- Whether the `rate-limit` setting is sane (default 2 requests/second);
+- Network probe: is `www.zhihu.com` reachable (skip with `--no-network`).
+
+```bash
+# Custom cookie path / check a specific rate limit / skip the network probe
+python -m zhihu_downloader doctor --cookie-file <path> --rate-limit 1 --no-network
+```
+
+> The exit code is non-zero when errors are found; warnings alone keep it at 0
+> (no cookie on first use is normal).
+
 ## Terminal Demo
 
 > The terminal output below is a simulated example, not a real screenshot; actual
@@ -174,7 +200,7 @@ Open <http://127.0.0.1:3000> after startup:
 
 ```text
 $ python -m zhihu_downloader --version
-zhihu-downloader 4.2.0
+zhihu-downloader 4.3.0
 
 $ python -m zhihu_downloader qr-login
 请用知乎 APP 扫码登录，二维码图片路径: /tmp/tmpa1b2c3.jpg
@@ -186,6 +212,13 @@ $ python -m zhihu_downloader download \
     --format epub
 标题: 《盐选小说 · 示例章节》
 已导出: ./盐选小说 · 示例章节.epub
+
+$ python -m zhihu_downloader doctor
+ℹ️ [版本] zhihu-downloader 4.3.0
+✅ [Python/系统] Python 3.12，Linux x86_64
+✅ [Cookie] Cookie 有效（含 z_c0/zse_ck）
+✅ [限速] rate_limit=2.0 请求/秒（默认 2，合理）
+✅ [网络] www.zhihu.com 可达（HTTP 200）
 
 $ python -m zhihu_downloader web
 INFO:     Uvicorn running on http://127.0.0.1:3000 (Press CTRL+C to quit)
