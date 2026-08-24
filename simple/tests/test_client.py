@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -248,3 +249,37 @@ class TestDownload:
         client.fetch = MagicMock(return_value="<html><body>无链接</body></html>")  # type: ignore[method-assign]
         with pytest.raises(ZhihuError, match="章节链接"):
             client.download("https://www.zhihu.com/market/paid_column/1", output_dir=tmp_path)
+
+
+class TestRateLimit:
+    def test_default_rate_limit_is_2(self, tmp_path: Path) -> None:
+        client = ZhihuClient(cookie_file=tmp_path / "c.json")
+        assert client.rate_limit == 2.0
+
+    def test_throttle_between_fetches(self, tmp_path: Path) -> None:
+        session = FakeSession(get_map={"https://www.zhihu.com/x": FakeResponse(text="ok")})
+        client = make_client(session, tmp_path / "c.json")
+        client.rate_limit = 50  # 0.02s 间隔
+        start = time.monotonic()
+        client.fetch("https://www.zhihu.com/x")
+        client.fetch("https://www.zhihu.com/x")
+        assert time.monotonic() - start >= 0.02
+
+    def test_rate_limit_zero_disables_throttle(self, tmp_path: Path) -> None:
+        session = FakeSession(get_map={"https://www.zhihu.com/x": FakeResponse(text="ok")})
+        client = make_client(session, tmp_path / "c.json")
+        client.rate_limit = 0
+        start = time.monotonic()
+        client.fetch("https://www.zhihu.com/x")
+        client.fetch("https://www.zhihu.com/x")
+        assert time.monotonic() - start < 0.01
+
+    def test_download_accepts_rate_limit_override(self, tmp_path: Path) -> None:
+        client = make_client(FakeSession(), tmp_path / "c.json")
+        client.fetch = MagicMock(return_value=SECTION_HTML)  # type: ignore[method-assign]
+        client.download(
+            "https://www.zhihu.com/market/paid_column/1/section/2",
+            output_dir=tmp_path,
+            rate_limit=10,
+        )
+        assert client.rate_limit == 10
