@@ -8,6 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from . import __version__
 from .client import ZhihuClient, ZhihuError
 
 
@@ -15,6 +16,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="zhihu-downloader",
         description="知乎盐选小说下载器（极简 v4）",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"zhihu-downloader {__version__}",
+        help="显示版本号并退出",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

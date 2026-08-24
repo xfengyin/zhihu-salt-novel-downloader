@@ -1,6 +1,9 @@
 # 知乎盐选小说下载器 v4（极简版）
 
 [![CI](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml/badge.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml)
+[![Release](https://img.shields.io/github/v/release/xfengyin/zhihu-salt-novel-downloader)](https://github.com/xfengyin/zhihu-salt-novel-downloader/releases)
+[![Stars](https://img.shields.io/github/stars/xfengyin/zhihu-salt-novel-downloader)](https://github.com/xfengyin/zhihu-salt-novel-downloader)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/blob/master/LICENSE)
 
 极简 v4：只保留核心能力 —— 扫码登录、Cookie 管理、下载、导出、极简 Web API。
 同步、易读、易维护，让用户 1 分钟跑起来。
@@ -15,6 +18,17 @@
 - 内置极简 Web UI（可选）
 
 > 仅限已购买内容的个人离线阅读，请勿用于分发、商用或侵权传播。
+
+## 功能特性
+
+- 🔐 **扫码登录**：手机知乎 App 一键扫码，Cookie 自动保存到本地（`~/.zhihu_downloader/cookies.json`），无需手动复制粘贴。
+- 📥 **下载盐选内容**：支持盐选单章节与整个专栏（`market/paid_column` 链接）。
+- 📦 **多格式导出**：`txt` / `md` / `epub` 三种格式，满足阅读器、排版、电子书等不同需求。
+- 🐢 **默认限速**：默认 2 请求/秒（`--rate-limit` 可调，最小 0.5），兼顾下载速度与平台友好。
+- 🛡️ **请求签名**：自动注入 `x-zse-96` 签名头，配合有效 Cookie 降低被反爬拦截的概率。
+- 🌐 **极简 Web UI**（可选）：浏览器内扫码、粘贴链接、一键下载。
+- 🖥️ **CLI 全功能**：`qr-login` / `download` / `web` 三个子命令，`--version` 随时查看版本。
+- ⚡ **1 分钟上手**：纯 Python 3.10+、依赖少，`pip install -r requirements.txt` 即用。
 
 ## 合规与使用限制
 
@@ -55,6 +69,9 @@ python -m zhihu_downloader download --url <盐选链接> --format txt
 
 # 3. 启动 Web UI（可选）
 python -m zhihu_downloader web
+
+# 4. 查看版本
+python -m zhihu_downloader --version
 ```
 
 也可以安装为命令行工具后直接调用 `zhihu-downloader`：
@@ -76,6 +93,18 @@ python -m zhihu_downloader qr-login
 1. 生成登录二维码（临时图片路径会打印在终端）；
 2. 用知乎 App 扫码并确认；
 3. 成功后自动保存 Cookie 到 `~/.zhihu_downloader/cookies.json`。
+
+**二维码登录流程：**
+
+```text
+终端生成二维码 → 手机知乎 App「扫一扫」→ App 内确认登录
+      ↓
+Cookie 自动保存 ~/.zhihu_downloader/cookies.json → 后续下载直接复用
+```
+
+- 二维码图片保存为临时 `.jpg` 文件并打印路径，用任意图片查看器打开即可扫码；
+- 二维码有时效（约几分钟），过期后重新运行 `qr-login` 即可；
+- 登录态长期有效，直到 Cookie 失效或删除 `~/.zhihu_downloader/cookies.json`。
 
 ### 下载（download）
 
@@ -115,6 +144,29 @@ python -m zhihu_downloader web
 3. 下载完成后查看 / 下载导出文件。
 
 > Web UI 的静态页面由前端实现填充（`zhihu_downloader/static/`）。
+
+## 终端演示
+
+> 以下为终端输出示例（模拟演示，非真实截图）；真实输出与你的账号、网络环境相关。
+
+```text
+$ python -m zhihu_downloader --version
+zhihu-downloader 4.2.0
+
+$ python -m zhihu_downloader qr-login
+请用知乎 APP 扫码登录，二维码图片路径: /tmp/tmpa1b2c3.jpg
+等待扫码确认中...
+登录成功 user_id=1234567890，Cookie 已保存到 /root/.zhihu_downloader/cookies.json
+
+$ python -m zhihu_downloader download \
+    --url "https://www.zhihu.com/market/paid_column/123456789/section/987654321" \
+    --format epub
+标题: 《盐选小说 · 示例章节》
+已导出: ./盐选小说 · 示例章节.epub
+
+$ python -m zhihu_downloader web
+INFO:     Uvicorn running on http://127.0.0.1:3000 (Press CTRL+C to quit)
+```
 
 ## 支持格式
 
