@@ -55,7 +55,7 @@ def create_app(client: ZhihuClient | None = None) -> FastAPI:
     """创建 FastAPI 应用。``client`` 不传时使用默认（共享 Cookie 文件）。"""
     client = client or ZhihuClient()
 
-    app = FastAPI(title="知乎盐选下载器 v4", version="4.0.0")
+    app = FastAPI(title="知乎盐选下载器 v4", version="4.1.0")
 
     # ------------------------------------------------------------------
     # 健康检查 / Cookie

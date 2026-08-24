@@ -1,5 +1,7 @@
 # 知乎盐选小说下载器 v4（极简版）
 
+[![CI](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml/badge.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml)
+
 极简 v4：只保留核心能力 —— 扫码登录、Cookie 管理、下载、导出、极简 Web API。
 同步、易读、易维护，让用户 1 分钟跑起来。
 

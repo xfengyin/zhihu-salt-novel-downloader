@@ -1,5 +1,7 @@
 # Zhihu Salt-Novel Downloader v4 (Minimal Edition)
 
+[![CI](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml/badge.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml)
+
 The minimal v4 keeps only the core capabilities: QR-code login, cookie management,
 downloading, exporting, and a minimal Web API.
 Synchronous, readable, and easy to maintain — get started in about a minute.
