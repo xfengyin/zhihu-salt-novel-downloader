@@ -27,7 +27,7 @@
 - 🐢 **默认限速**：默认 2 请求/秒（`--rate-limit` 可调，最小 0.5），兼顾下载速度与平台友好。
 - 🛡️ **请求签名**：自动注入 `x-zse-96` 签名头，配合有效 Cookie 降低被反爬拦截的概率。
 - 🌐 **极简 Web UI**（可选）：浏览器内扫码、粘贴链接、一键下载。
-- 🖥️ **CLI 全功能**：`qr-login` / `download` / `web` 三个子命令，`--version` 随时查看版本。
+- 🖥️ **CLI 全功能**：`qr-login` / `download` / `doctor` / `web` 四个子命令，`--version` 随时查看版本。
 - ⚡ **1 分钟上手**：纯 Python 3.10+、依赖少，`pip install -r requirements.txt` 即用。
 
 ## 合规与使用限制
@@ -67,10 +67,13 @@ python -m zhihu_downloader qr-login
 # 2. 下载盐选专栏 / 章节
 python -m zhihu_downloader download --url <盐选链接> --format txt
 
-# 3. 启动 Web UI（可选）
+# 3. 诊断环境 / Cookie / 网络（遇到问题先跑这个）
+python -m zhihu_downloader doctor
+
+# 4. 启动 Web UI（可选）
 python -m zhihu_downloader web
 
-# 4. 查看版本
+# 5. 查看版本
 python -m zhihu_downloader --version
 ```
 
@@ -145,13 +148,33 @@ python -m zhihu_downloader web
 
 > Web UI 的静态页面由前端实现填充（`zhihu_downloader/static/`）。
 
+### 诊断（doctor）
+
+```bash
+python -m zhihu_downloader doctor
+```
+
+输出环境健康清单（✅ 健康 / ⚠️ 警告 / ❌ 错误），适合排障第一步：
+
+- 版本与 Python/系统信息；
+- Cookie 文件是否存在、是否含 `z_c0` / `zse_ck`（缺失只告警，不报错）；
+- `rate-limit` 设置是否合理（默认 2 请求/秒）；
+- 网络探测：`www.zhihu.com` 是否可达（可用 `--no-network` 跳过）。
+
+```bash
+# 自定义 Cookie 路径 / 检查指定限速 / 跳过网络探测
+python -m zhihu_downloader doctor --cookie-file <路径> --rate-limit 1 --no-network
+```
+
+> 存在错误时退出码非 0；只有警告时退出码为 0（首次使用无 Cookie 属正常）。
+
 ## 终端演示
 
 > 以下为终端输出示例（模拟演示，非真实截图）；真实输出与你的账号、网络环境相关。
 
 ```text
 $ python -m zhihu_downloader --version
-zhihu-downloader 4.2.0
+zhihu-downloader 4.3.0
 
 $ python -m zhihu_downloader qr-login
 请用知乎 APP 扫码登录，二维码图片路径: /tmp/tmpa1b2c3.jpg
@@ -163,6 +186,13 @@ $ python -m zhihu_downloader download \
     --format epub
 标题: 《盐选小说 · 示例章节》
 已导出: ./盐选小说 · 示例章节.epub
+
+$ python -m zhihu_downloader doctor
+ℹ️ [版本] zhihu-downloader 4.3.0
+✅ [Python/系统] Python 3.12，Linux x86_64
+✅ [Cookie] Cookie 有效（含 z_c0/zse_ck）
+✅ [限速] rate_limit=2.0 请求/秒（默认 2，合理）
+✅ [网络] www.zhihu.com 可达（HTTP 200）
 
 $ python -m zhihu_downloader web
 INFO:     Uvicorn running on http://127.0.0.1:3000 (Press CTRL+C to quit)
