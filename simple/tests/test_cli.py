@@ -1,9 +1,11 @@
-"""cli 测试 - 参数解析与 rate-limit 传递（不触网）。"""
+"""cli 测试 - 参数解析与 rate-limit / version 行为（不触网）。"""
 
 from __future__ import annotations
 
+import pytest
 from unittest.mock import MagicMock
 
+from zhihu_downloader import __version__
 from zhihu_downloader.cli import _build_parser, cmd_download
 
 
@@ -34,7 +36,23 @@ class TestRateLimitArg:
         assert kwargs["rate_limit"] == 0.5
 
     def test_help_lists_rate_limit(self, capsys) -> None:
-        with __import__("pytest").raises(SystemExit):
+        with pytest.raises(SystemExit):
             _build_parser().parse_args(["download", "--help"])
         out = capsys.readouterr().out
         assert "--rate-limit" in out
+
+
+class TestVersionArg:
+    def test_version_prints_package_version(self, capsys) -> None:
+        with pytest.raises(SystemExit) as exc:
+            _build_parser().parse_args(["--version"])
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert f"zhihu-downloader {__version__}" in out
+        assert "4.2.0" in out
+
+    def test_help_lists_version(self, capsys) -> None:
+        with pytest.raises(SystemExit):
+            _build_parser().parse_args(["--help"])
+        out = capsys.readouterr().out
+        assert "--version" in out

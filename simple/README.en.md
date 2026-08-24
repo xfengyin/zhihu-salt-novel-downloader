@@ -1,6 +1,9 @@
 # Zhihu Salt-Novel Downloader v4 (Minimal Edition)
 
 [![CI](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml/badge.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci-simple.yml)
+[![Release](https://img.shields.io/github/v/release/xfengyin/zhihu-salt-novel-downloader)](https://github.com/xfengyin/zhihu-salt-novel-downloader/releases)
+[![Stars](https://img.shields.io/github/stars/xfengyin/zhihu-salt-novel-downloader)](https://github.com/xfengyin/zhihu-salt-novel-downloader)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/blob/master/LICENSE)
 
 The minimal v4 keeps only the core capabilities: QR-code login, cookie management,
 downloading, exporting, and a minimal Web API.
@@ -17,6 +20,24 @@ Zhihu Salt-Novel Downloader v4 is a minimal downloader that:
 
 > For personal offline reading of content you have already purchased only.
 > Do not redistribute, commercialize, or infringe copyright.
+
+## Features
+
+- 🔐 **QR-code login**: Scan once with the Zhihu app; cookies are saved automatically
+  to `~/.zhihu_downloader/cookies.json` — no manual copying.
+- 📥 **Download salt-novel content**: Single sections and entire columns
+  (`market/paid_column` links).
+- 📦 **Multiple export formats**: `txt` / `md` / `epub` for readers, typesetting,
+  and e-book workflows.
+- 🐢 **Rate-limited by default**: 2 requests/second by default (tunable via
+  `--rate-limit`, minimum 0.5) — polite to the platform.
+- 🛡️ **Request signing**: Automatically injects the `x-zse-96` signature header to
+  reduce the chance of anti-crawling blocks (requires valid cookies).
+- 🌐 **Minimal Web UI** (optional): scan, paste a link, and download from the browser.
+- 🖥️ **Full-featured CLI**: `qr-login` / `download` / `web` subcommands, plus
+  `--version`.
+- ⚡ **1-minute setup**: Pure Python 3.10+, few dependencies,
+  `pip install -r requirements.txt` and go.
 
 ## Compliance & Usage Restrictions
 
@@ -68,6 +89,9 @@ python -m zhihu_downloader download --url <salt-novel-url> --format txt
 
 # 3. Start the Web UI (optional)
 python -m zhihu_downloader web
+
+# 4. Show the version
+python -m zhihu_downloader --version
 ```
 
 You can also install it as a command-line tool and call `zhihu-downloader` directly:
@@ -89,6 +113,20 @@ This command will:
 1. Generate a login QR code (the temporary image path is printed to the terminal);
 2. Scan and confirm it with the Zhihu app;
 3. On success, automatically save cookies to `~/.zhihu_downloader/cookies.json`.
+
+**QR-code login flow:**
+
+```text
+Terminal generates QR code → scan with the Zhihu app → confirm in the app
+      ↓
+Cookies auto-saved to ~/.zhihu_downloader/cookies.json → reused by later downloads
+```
+
+- The QR code is saved as a temporary `.jpg` file and its path is printed; open it
+  with any image viewer to scan.
+- The QR code expires after a few minutes; re-run `qr-login` to get a fresh one.
+- The login session stays valid until the cookies expire or you delete
+  `~/.zhihu_downloader/cookies.json`.
 
 ### Download (download)
 
@@ -128,6 +166,33 @@ Open <http://127.0.0.1:3000> after startup:
 3. View / download the exported files when finished.
 
 > The Web UI static pages are served from `zhihu_downloader/static/`.
+
+## Terminal Demo
+
+> The terminal output below is a simulated example, not a real screenshot; actual
+> output depends on your account and network.
+
+```text
+$ python -m zhihu_downloader --version
+zhihu-downloader 4.2.0
+
+$ python -m zhihu_downloader qr-login
+请用知乎 APP 扫码登录，二维码图片路径: /tmp/tmpa1b2c3.jpg
+等待扫码确认中...
+登录成功 user_id=1234567890，Cookie 已保存到 /root/.zhihu_downloader/cookies.json
+
+$ python -m zhihu_downloader download \
+    --url "https://www.zhihu.com/market/paid_column/123456789/section/987654321" \
+    --format epub
+标题: 《盐选小说 · 示例章节》
+已导出: ./盐选小说 · 示例章节.epub
+
+$ python -m zhihu_downloader web
+INFO:     Uvicorn running on http://127.0.0.1:3000 (Press CTRL+C to quit)
+```
+
+> English output note: the CLI currently prints Chinese messages (e.g. login and
+> download progress); command names, options, and formats are language-neutral.
 
 ## Supported Formats
 
