@@ -56,6 +56,26 @@ python -m zipfile -t zhihu-win.zip   # zip 完整性
 **待办**：在目标环境（GLIBC ≥ 2.38 的 Linux / Windows 10/11）补跑 `--version` / `--help`，
 确认后在本节勾选 ⬜ → ☑ 并注明环境。
 
+### Release 描述更新（M7，2026-08-24）
+
+✅ 已通过 GitHub API `PATCH /releases/375758922` 更新 v4.2.0 Release body：
+- 内容：英文 Announcement + 中文简介 + Downloads（Linux/Windows 资产链接 + 源码安装）+ 合规说明（中英）+ Changelog 链接
+- 结果：body 更新成功（1297 字符），含「English Announcement / 中文简介 / Downloads / 合规 / no paywall bypass」
+- Release 页面：https://github.com/xfengyin/zhihu-salt-novel-downloader/releases/tag/v4.2.0
+
+### 投稿文件已就绪（M7，2026-08-24）
+
+✅ 6 份帖子最终稿已拆分为独立文件（可直接复制发布）：
+
+| 渠道 | 文件 |
+|------|------|
+| Show HN | [`docs/posts/hn.md`](posts/hn.md) |
+| Reddit r/Python | [`docs/posts/reddit_python.md`](posts/reddit_python.md) |
+| Reddit r/selfhosted | [`docs/posts/reddit_selfhosted.md`](posts/reddit_selfhosted.md) |
+| Awesome 投稿 | [`docs/posts/awesome.md`](posts/awesome.md) |
+| 掘金 | [`docs/posts/juejin.md`](posts/juejin.md) |
+| 知乎 | [`docs/posts/zhihu.md`](posts/zhihu.md) |
+
 ---
 
 ## 2. 待执行的外部投稿清单
