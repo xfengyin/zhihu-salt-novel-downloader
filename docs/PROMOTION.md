@@ -271,21 +271,25 @@ English: v4.1.0 adds GitHub Actions CI for the simple package and syncs versioni
 
 ## 9. 下一步外部投稿清单（状态跟踪）
 
-> M4 更新：基建已全部落地（README / Issue 模板 / --version / 发版清单），
-> 以下为**待执行的对外动作**，建议按序推进，每完成一项勾选并记录日期。
+> **M5 更新：准备完成** ✅ —— 执行包已就绪：
+> - 帖子**最终稿**、发布顺序、tracking 表、截图/录屏建议 → [`docs/LAUNCH_PACK.md`](LAUNCH_PACK.md)；
+> - 贡献指南 → `CONTRIBUTING.md`（仓库根目录）。
+> 以下为**待执行的对外动作**（全部材料已备齐，随时可发），每完成一项勾选并记录日期。
 
 | # | 动作 | 前置条件 | 状态 | 完成日期 |
 |---|------|----------|------|----------|
 | 1 | 打 tag `v4.2.0` 发布（触发 release-simple.yml） | §0 全绿 | ⬜ 待执行 | |
 | 2 | 发布后验证 Linux/Windows 资产（见 RELEASE_CHECKLIST §7） | 动作 1 | ⬜ 待执行 | |
-| 3 | HN Show HN 发帖（§3.1 草稿） | 动作 1 完成 | ⬜ 待执行 | |
-| 4 | Reddit r/Python 发帖（§3.2 草稿） | 动作 1 完成 | ⬜ 待执行 | |
-| 5 | Reddit r/selfhosted 发帖（§3.3 草稿，配合 Web UI） | 动作 1 完成 | ⬜ 待执行 | |
-| 6 | Awesome 列表投稿（§2：awesome-zhihu / downloader / selfhosted） | 动作 1 完成 | ⬜ 待执行 | |
+| 3 | Show HN 发帖（最终稿见 LAUNCH_PACK §2.1） | 动作 1 完成 | ⬜ 待执行 | |
+| 4 | Reddit r/Python 发帖（最终稿见 LAUNCH_PACK §2.2） | 动作 1 完成 | ⬜ 待执行 | |
+| 5 | Reddit r/selfhosted 发帖（最终稿见 LAUNCH_PACK §2.3） | 动作 1 完成 | ⬜ 待执行 | |
+| 6 | Awesome 列表投稿（一句话文案见 LAUNCH_PACK §2.4，候选见 §2） | 动作 1 完成 | ⬜ 待执行 | |
 | 7 | GitHub topics / description SEO 设置（§6.2/6.3） | 动作 1 完成 | ⬜ 待执行 | |
-| 8 | 中文社区二次传播（§3.4：知乎/V2EX，可选） | 动作 3–4 完成 | ⬜ 待执行 | |
-| 9 | asciinema 真实终端录屏替换「模拟」标注（§1 升级项） | 可正常登录下载已购章节 | ⬜ 待执行 | |
+| 8 | 中文社区：掘金（LAUNCH_PACK §2.5）+ 知乎（§2.6）+ V2EX（可选） | 动作 3–4 完成 | ⬜ 待执行 | |
+| 9 | asciinema 录屏替换「模拟」标注（建议见 LAUNCH_PACK §3） | 可正常登录下载已购章节 | ⬜ 待执行 | |
 | 10 | README 末尾加「Star 理由」一行（§1 升级项） | 无 | ⬜ 待执行 | |
+
+> 发帖后按 LAUNCH_PACK §4 tracking 表记录，两周后复盘（§8）。
 
 ---
 
