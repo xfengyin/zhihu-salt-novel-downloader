@@ -26,6 +26,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_download.add_argument("--token", default=None, help="z_c0 token（优先级高于 cookie-file）")
     p_download.add_argument("--output-dir", default=".", help="输出目录")
     p_download.add_argument("--format", default="md", choices=["txt", "md", "epub"])
+    p_download.add_argument(
+        "--rate-limit",
+        type=float,
+        default=2.0,
+        help="每秒最多请求数（默认 2，最小 0.5），下载时对全部请求生效",
+    )
 
     p_web = sub.add_parser("web", help="启动 Web API")
     p_web.add_argument("--host", default="127.0.0.1")
@@ -76,8 +82,16 @@ def cmd_download(client: ZhihuClient, args: argparse.Namespace) -> int:
     if args.token:
         client.load_cookies({"z_c0": args.token})
 
+    # 限速下限保护：最小 0.5 请求/秒（间隔不超过 2s）
+    rate_limit = max(args.rate_limit, 0.5)
+
     try:
-        result = client.download(args.url, fmt=args.format, output_dir=args.output_dir)
+        result = client.download(
+            args.url,
+            fmt=args.format,
+            output_dir=args.output_dir,
+            rate_limit=rate_limit,
+        )
     except ZhihuError as e:
         print(f"下载失败: {e}", file=sys.stderr)
         return 1

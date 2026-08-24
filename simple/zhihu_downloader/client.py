@@ -46,9 +46,14 @@ class ZhihuClient:
         self,
         cookie_file: str | Path | None = None,
         timeout: float = 20.0,
+        rate_limit: float | None = 2.0,
     ) -> None:
         self.timeout = timeout
         self.cookie_file = Path(cookie_file) if cookie_file else DEFAULT_COOKIE_FILE
+        # 请求限速（请求/秒）：默认 2（约 0.5s 一次请求），避免触发反爬。
+        # 0 / None / 负数 表示不限速。
+        self.rate_limit = rate_limit
+        self._last_request_at = 0.0
         self._cookies: dict[str, str] = {}
         self.session = requests.Session()
         self.session.headers.update(
@@ -278,8 +283,22 @@ class ZhihuClient:
             "x-zse-93": XZSE_93_VERSION,
         }
 
+    def _throttle(self) -> None:
+        """按 ``self.rate_limit``（请求/秒）在连续请求之间限速。
+
+        ``rate_limit`` 为 0 / None / 负数时不限速。
+        """
+        if not self.rate_limit or self.rate_limit <= 0:
+            return
+        interval = 1.0 / self.rate_limit
+        elapsed = time.monotonic() - self._last_request_at
+        if elapsed < interval:
+            time.sleep(interval - elapsed)
+        self._last_request_at = time.monotonic()
+
     def fetch(self, url: str) -> str:
         """GET 请求并返回文本，自动注入签名头，403/429 抛出中文异常。"""
+        self._throttle()
         headers = self._sign_headers(url)
         try:
             resp = self.session.get(url, headers=headers or None, timeout=self.timeout)
@@ -297,15 +316,26 @@ class ZhihuClient:
             raise ZhihuError(f"请求失败（HTTP {resp.status_code}）: {url}")
         return resp.text
 
-    def download(self, url: str, fmt: str = "md", output_dir: str | Path = ".") -> dict:
+    def download(
+        self,
+        url: str,
+        fmt: str = "md",
+        output_dir: str | Path = ".",
+        rate_limit: float | None = None,
+    ) -> dict:
         """下载盐选章节或专栏并导出。
 
         - section URL（含 ``/section/``）：只下载该章节。
         - column URL：先解析目录，再逐章下载合并导出。
 
+        ``rate_limit``（请求/秒）非 None 时覆盖客户端默认限速，
+        作用于本次下载中的全部网络请求。
+
         Returns:
             {"title": str, "files": [str, ...]}
         """
+        if rate_limit is not None:
+            self.rate_limit = rate_limit
         if "/section/" in url:
             html = self.fetch(url)
             article = parse_article(html, url)
