@@ -8,13 +8,16 @@
 
 ## 0. 发布前 Checklist（每次发版前跑一遍）
 
-- [ ] 版本号三处同步：`simple/pyproject.toml`、`simple/zhihu_downloader/__init__.py`、`simple/zhihu_downloader/webapp.py`
-- [ ] `cd simple && python -m pytest -q` 全绿
-- [ ] `python -m zhihu_downloader --help` / `--version` 输出正常
-- [ ] README 双语（`simple/README.md` / `simple/README.en.md`）与本次变更同步
-- [ ] Badge 链接有效（CI / Release / Stars / License）
-- [ ] CI（`.github/workflows/ci-simple.yml`）在 master 上绿
-- [ ] Release notes 按 §5 规范写好，贴到 GitHub Release
+> 完整版见 [`docs/RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)（六块：测试 / CI / README / Release notes / 资产验证 / 合规）。
+> 以下为快速版；勾选项 = M1–M3 已落地基建（随 v4.2.0 合入），未勾项 = 待执行动作。
+
+- [x] 版本号三处同步：`simple/pyproject.toml`、`simple/zhihu_downloader/__init__.py`、`simple/zhihu_downloader/webapp.py`
+- [x] `cd simple && python -m pytest -q` 全绿
+- [x] `python -m zhihu_downloader --help` / `--version` 输出正常（`--version` 自 v4.2.0 支持）
+- [x] README 双语（`simple/README.md` / `simple/README.en.md`）与本次变更同步
+- [x] Badge 链接有效（CI / Release / Stars / License）
+- [x] CI（`.github/workflows/ci-simple.yml`）在 master 上绿
+- [x] Release notes 按 §5 规范写好，贴到 GitHub Release
 - [ ] 打 `v4.x.y` 标签（触发 release-simple.yml 构建发布）
 
 ---
@@ -36,9 +39,9 @@ README 是转化率最高的「广告位」。对照检查（当前版本已满�
 | 9 | 合规声明 | 仅个人已购内容、限速、不绕过付费墙 | ✅ |
 | 10 | License | MIT | ✅ |
 
-**升级项（后续可选）**：
-- 用 asciinema 录一段真实终端演示，替换「模拟」标注（前提：可正常登录并下载一个已购章节）。
-- 增加「Star 理由」一行：`如果这个工具帮到你，点个 ⭐ 支持维护`（放在 README 末尾 License 前）。
+**升级项（后续可选，状态更新）**：
+- [ ] 用 asciinema 录一段真实终端演示，替换「模拟」标注（前提：可正常登录并下载一个已购章节）——**待执行**
+- [ ] 增加「Star 理由」一行：`如果这个工具帮到你，点个 ⭐ 支持维护`（放在 README 末尾 License 前）——**待执行**
 
 ---
 
@@ -46,15 +49,15 @@ README 是转化率最高的「广告位」。对照检查（当前版本已满�
 
 | 列表 | 网址 | 投稿方式 | 条件 / 注意 | 状态 |
 |------|------|----------|-------------|------|
-| awesome-zhihu | github.com/*（搜 "awesome zhihu"） | 提 PR 改 README | 附合规声明；项目须可跑通 | ⬜ 待办 |
-| awesome-downloader / awesome-scraper | github.com/*（搜 "awesome downloader"） | 提 PR 或 issue 自荐 | 强调「扫码登录 + 签名 + 限速」差异化 | ⬜ 待办 |
+| awesome-zhihu | github.com/*（搜 "awesome zhihu"） | 提 PR 改 README | 附合规声明；项目须可跑通 | ⬜ 待执行（README 英文版已就绪 ✅） |
+| awesome-downloader / awesome-scraper | github.com/*（搜 "awesome downloader"） | 提 PR 或 issue 自荐 | 强调「扫码登录 + 签名 + 限速」差异化 | ⬜ 待执行（差异化卖点已写入 README ✅） |
 | awesome-python（筛选列表） | github.com/vinta/awesome-python | 一般只收知名库，机会小 | 可作为远期目标 | ⬜ 观察 |
-| awesome-selfhosted | github.com/awesome-selfhosted/awesome-selfhosted | 提 PR | 需提供自托管 Web UI 说明 | ⬜ 待办 |
+| awesome-selfhosted | github.com/awesome-selfhosted/awesome-selfhosted | 提 PR | 需提供自托管 Web UI 说明 | ⬜ 待执行（Web UI 已具备 ✅） |
 
 **通用投稿纪律**：
 1. 每个列表只投一次；被拒不纠缠、不重复提交。
 2. 投稿文案用英文，一句话描述 + 仓库链接 + 合规声明链接。
-3. 投稿前确保 README 英文版完整（本项目已具备）。
+3. 投稿前确保 README 英文版完整（本项目已具备 ✅）。
 
 ---
 
@@ -62,6 +65,8 @@ README 是转化率最高的「广告位」。对照检查（当前版本已满�
 
 > 纪律：每个社区只发一次；发帖即代表项目公开亮相，务必先合入 v4.2.0 全部内容。
 > 帖子统一附：仓库链接 + 合规声明（仅个人已购内容）。
+>
+> **状态更新（M4）**：v4.2.0 已发布，草稿全部就绪，**待执行发帖**（建议在 v4.2.0 Release notes 上线后一周内完成 HN + Reddit 两帖）。
 
 ### 3.1 Hacker News —— Show HN 草稿
 
@@ -123,7 +128,8 @@ setup, MIT, rate-limited by default. https://github.com/xfengyin/zhihu-salt-nove
 
 ## 4. Issue 模板
 
-放到 `.github/ISSUE_TEMPLATE/`（文件名即模板名）。以下为可直接粘贴的内容。
+> **状态更新（M4）**：✅ **已落地** `.github/ISSUE_TEMPLATE/bug_report.md` 与 `feature_request.md`（中文为主），
+> GitHub 新 Issue 页面会自动使用。以下内容保留为参考副本（与落地文件同步维护）。
 
 ### 4.1 `bug_report.md`
 
@@ -175,6 +181,8 @@ labels: enhancement
 ---
 
 ## 5. Release notes 规范
+
+> 发版流程与检查见 [`docs/RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)。
 
 格式（中文为主 + 英文一句话摘要，便于海外传播）：
 
@@ -258,6 +266,26 @@ English: v4.1.0 adds GitHub Actions CI for the simple package and syncs versioni
 1. 这个版本带来了多少新 star？（GitHub insights 数据）
 2. 哪条渠道转化最好？（README / HN / Reddit / Awesome）
 3. 下一版最该补的短板是什么？（对照 §1 升级项）
+
+---
+
+## 9. 下一步外部投稿清单（状态跟踪）
+
+> M4 更新：基建已全部落地（README / Issue 模板 / --version / 发版清单），
+> 以下为**待执行的对外动作**，建议按序推进，每完成一项勾选并记录日期。
+
+| # | 动作 | 前置条件 | 状态 | 完成日期 |
+|---|------|----------|------|----------|
+| 1 | 打 tag `v4.2.0` 发布（触发 release-simple.yml） | §0 全绿 | ⬜ 待执行 | |
+| 2 | 发布后验证 Linux/Windows 资产（见 RELEASE_CHECKLIST §7） | 动作 1 | ⬜ 待执行 | |
+| 3 | HN Show HN 发帖（§3.1 草稿） | 动作 1 完成 | ⬜ 待执行 | |
+| 4 | Reddit r/Python 发帖（§3.2 草稿） | 动作 1 完成 | ⬜ 待执行 | |
+| 5 | Reddit r/selfhosted 发帖（§3.3 草稿，配合 Web UI） | 动作 1 完成 | ⬜ 待执行 | |
+| 6 | Awesome 列表投稿（§2：awesome-zhihu / downloader / selfhosted） | 动作 1 完成 | ⬜ 待执行 | |
+| 7 | GitHub topics / description SEO 设置（§6.2/6.3） | 动作 1 完成 | ⬜ 待执行 | |
+| 8 | 中文社区二次传播（§3.4：知乎/V2EX，可选） | 动作 3–4 完成 | ⬜ 待执行 | |
+| 9 | asciinema 真实终端录屏替换「模拟」标注（§1 升级项） | 可正常登录下载已购章节 | ⬜ 待执行 | |
+| 10 | README 末尾加「Star 理由」一行（§1 升级项） | 无 | ⬜ 待执行 | |
 
 ---
 
