@@ -33,6 +33,9 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
+  # Windows runner 默认 cp1252 stdout：任何步骤的中文 print 都会 UnicodeEncodeError
+  # （v5.0.0 的 PyInstaller spec 就死在这）。统一钉成 UTF-8。
+  PYTHONIOENCODING: "utf-8"
 
 jobs:
   # --------------------------------------------------------------------------

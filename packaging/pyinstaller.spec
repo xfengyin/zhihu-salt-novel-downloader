@@ -43,6 +43,20 @@ SRC_DIR = REPO_ROOT / "src"                   # <repo>/src
 PKG_DIR = SRC_DIR / "zhihu_downloader"        # 包根（入口所在）
 STATIC_SRC = PKG_DIR / "app" / "static"       # 原生 Web UI（零构建步骤，铁律 2）
 
+def _say(msg):
+    """Windows 控制台安全打印：cp1252/cp936 编不出中文时降级为替换符，绝不炸构建。
+
+    v5.0.0 教训：spec 里 print("[spec] 已内嵌静态资源…") 在 windows runner 的
+    cp1252 stdout 上抛 UnicodeEncodeError，PyInstaller 直接退出 1——Linux/macOS
+    全绿、唯独 Windows 挂，且本地测试永远复现不了。中文用户机器同理，必须治在 spec 里。
+    """
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(msg.encode(enc, errors="replace").decode(enc, errors="replace"))
+
+
 block_cipher = None
 
 # ---------------------------------------------------------------------------
@@ -129,11 +143,11 @@ if not (STATIC_SRC / "index.html").is_file():
         "v5 的产品形态是双击即用（GUI+浏览器），缺前端页面打包出来就是废件，中止。"
     )
 datas.append((str(STATIC_SRC), "zhihu_downloader/app/static"))
-print(f"[spec] 已内嵌静态资源: {STATIC_SRC}")
+_say(f"[spec] 已内嵌静态资源: {STATIC_SRC}")
 
 hiddenimports = sorted(set(hiddenimports))
 
-print(f"[spec] 构建目标: {EXE_NAME} (onefile, console=True, python={sys.version.split()[0]})")
+_say(f"[spec] 构建目标: {EXE_NAME} (onefile, console=True, python={sys.version.split()[0]})")
 
 a = Analysis(
     [str(PKG_DIR / "__main__.py")],  # v5 绝对导入入口，等价 python -m zhihu_downloader
