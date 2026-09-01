@@ -1,538 +1,212 @@
-# zhihu-salt-novel-downloader
+# 知乎盐选小说下载器 v5
 
-> 🚀 **v4 极简版（推荐）**：快速上手请用极简版，见 [`simple/README.md`](simple/README.md) —— 扫码登录、下载、导出，1 分钟跑起来。
-> ⚠️ **旧版（历史版本）**：下文描述的是旧版全栈实现（`src/` 下），功能更全但更复杂，**不再推荐新用户使用**，仅保留供维护参考。
+> **把你已购买的盐选小说，变成能舒服躺在 Kindle / Kobo / Boox 上的精排电子书** —— 双击即用、扫码登录、断点续传、追更增量。
 
-知乎盐选小说下载器 - 异步并发下载 + 多格式导出 + 断点续传 + 三端桌面应用
+[![CI](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/xfengyin/zhihu-salt-novel-downloader)](https://github.com/xfengyin/zhihu-salt-novel-downloader/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/xfengyin/zhihu-salt-novel-downloader/blob/master/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 
-> 完整覆盖 **Web 前端 + FastAPI 后端 + Tauri 三端桌面应用** 的全栈实现。
-> 遵循 **开闭原则 / 依赖倒置 / 单一职责** 等企业级工程规范。
-> 云端 CI：推送 `v*` 标签自动构建并发布 5 个平台包到 GitHub Releases。
+> 状态：**v5.0.0-rc**。命令行接口按 [架构规格书 §2.15](docs/ARCHITECTURE_SPEC.md) 书写；内核各层（engine / parse /
+> export / shelf / auth）、`app/server.py`、`cli.py`、`update.py` 均已在树内并有离线测试，**待 RC 验收**：
+> 验收若发现与本文措辞不符，以规格书与代码为准并同步修订本文（本文不描述未实现的能力）。
+> v5 起本仓库只有一条主线；旧版实现（含其桌面端与前端形态）按 `PUSH_GUIDE.md` 归档到 `legacy/fullstack` 分支，本文不再描述。
 
-## 功能特性
+<!-- TODO: 真实截图（GUI 下载进度页 + 书架页），发布前补，勿用示意图 -->
 
-### 核心能力
-- **异步下载**: `asyncio + aiohttp` 实现高效并发下载
-- **速率控制**: 令牌桶算法，避免触发反爬
-- **断点续传**: 记录下载进度，支持中断后继续
-- **多格式导出**: 支持 `.txt`、`.md`、`.epub`、`.mobi` 四种格式
-- **智能分类**: 自动识别正文、番外、作者说
-- **内容清洗**: 自动移除广告、水印、推广语
-- **认证支持**: 支持扫码登录（推荐）/ Cookie / z_c0 token 认证
-- **扫码登录**: Web UI 一键扫码，自动保存 Cookie（`z_c0` / `zse_ck`），下载时自动使用
-- **User-Agent 轮换**: 模拟移动端请求
-- **批量下载**: 支持从文件读取多个URL批量下载
-- **更新检测**: 自动检测章节更新，增量下载
-- **书架管理**: 本地书架，管理已下载书籍
-- **Cookie自动读取**: 自动从浏览器获取Cookie，免手动导出
-- **插件化架构**: 通过 pluggy 实现数据源/导出器/钩子的 SPI 扩展
+---
 
-### 端到端形态
-- **CLI**: `zhihu-downloader download/shelf/serve` 命令行
-- **HTTP API**: FastAPI + OpenAPI 3.1 + RFC 7807 错误模型
-- **Web 前端**: React 18 + TypeScript + Tailwind + Radix UI（现代化 SPA）
-- **桌面端**: Tauri 2.x + Rust 后端（跨平台：**Windows / macOS / Linux**）
-- **PyInstaller EXE**: 单文件 Windows 可执行，双击即用（已含 Web 界面）
+## 30 秒上手（Windows，不需要装 Python）
 
-### 三端下载（GitHub Releases）
+1. 打开 [Releases](https://github.com/xfengyin/zhihu-salt-novel-downloader/releases)，下载 Windows 产物
+   `zhihu-downloader-<版本>-windows-x64.exe`（若该版本文附带 zip，解压后取出其中的 EXE），放到任意文件夹。
+2. **双击这个 EXE**：无参数启动等价于 `gui` —— 起本地服务，等服务就绪后自动打开浏览器，全程不用敲命令。
+   首次运行被 Windows SmartScreen 拦住时，点「更多信息」→「仍要运行」（见[常见问题](#常见问题)）。
+3. 页面里点「扫码登录」→ 用手机知乎 App 扫一扫 → 登录态自动保存到本机。
+4. 把盐选链接粘贴进输入框，例如 `https://www.zhihu.com/market/paid_column/1234567890123456789`。
+5. 格式选 `epub`（墨水屏推荐）→ 点「开始下载」→ 章节进度条走完后点「下载文件」。
+6. 把 `.epub` 拷进阅读器（USB 拷贝或 Send-to-Kindle 邮箱）即可离线阅读。
 
-前往 [Releases](https://github.com/xfengyin/zhihu-salt-novel-downloader/releases) 下载最新版：
+Web 服务只监听本机 `127.0.0.1`，正文与 Cookie 只发给知乎本身（下载必需），**不向任何第三方上传内容**：
+对外唯一的另一个请求，是启动时向 GitHub 查一次最新版 —— 固定地址、不带 Cookie / 书名 / 链接 / 用户标识
+（UA 是一个写死的产品串），可用 `--no-update-check` 关掉。下载中途断网、关窗、断电都行：
+重新粘贴同一条链接（CLI 则是重跑同一条命令）会继续下载未完成的章节（断点续传），不必从第 1 章重来。
+本项目刻意**不与风控赛跑**：120 章的书在默认限速下至少要一分钟量级的请求时间（实际取决于页面响应），
+这是「能长期用下去」的代价，不做多倍速抓取。
 
-| 端 | 平台 | 文件 |
-|----|------|------|
-| **Windows 桌面** | Win 10/11 x64 | `zhihu-downloader-desktop_x.y.z_x64-setup.exe` (NSIS) / `.msi` |
-| **macOS 桌面** | Intel + Apple Silicon | `zhihu-downloader-desktop_x.y.z_universal.dmg` |
-| **Linux 桌面** | Ubuntu/Debian x64 | `zhihu-downloader-desktop_x.y.z_amd64.deb` / `.AppImage` |
-| **Windows 简易版** | Win 10/11 x64 | `zhihu-downloader-windows-x64.zip`（单文件 EXE） |
-| **Web 静态** | 任意静态服务器 | `zhihu-web-static.zip` |
+连载中的书下载后会自动进「我的书架」；作者更新了就在书架点「追更」，只下新增章节并重排整本。
 
-## 支持范围与限制
+## 功能一览（对齐实际能力）
 
-### 支持的 URL
+| 能力 | 说明 |
+|---|---|
+| 扫码登录 | 知乎 App 扫码，Cookie 自动落盘（`0600` 权限），无需手工复制粘贴 |
+| Cookie 导入 | 三种格式自动识别：JSON 对象 / Netscape `cookies.txt` / `k=v; k2=v2` 原始串 |
+| 浏览器 Cookie（可选） | `pip install ".[browser]"` 后 `login --browser` 直接读 Chrome / Edge / Firefox 的知乎 Cookie |
+| 断点续传 | 逐章落盘到 `<输出目录>/.zhihu_state/`；某章最终失败时中止整本、已完成章节全部保留，重跑同一条命令自动跳过续传（错误消息也会这么指引）；章节缓存损坏会自动重取该章（自愈），只有**状态文件**损坏时才需要删状态文件或加 `--no-resume` 重下整本 |
+| 章节级进度 | CLI 进度条 + Web SSE：当前第几章 / 总数 / 章节标题，不用手动刷新 |
+| 限速内并行 | 整体节奏由客户端限速钳制（默认 2 请求/秒，跨线程预约时间槽）；`--workers` 只让等待中的请求互相重叠、解析与清洗并行，**不提高每秒请求数** |
+| 失败重试 | 网络错误与 429/5xx 指数退避重试 3 次（1/2/4 秒）；403 不重试，直接给可操作的中文提示 |
+| 番外自动归类 | 分类器识别「正文 / 番外 / 作者说」，EPUB 把番外与作者说归入「附录」目录节点 |
+| EPUB 精排 | 封面页 + 两级目录 + 稳定 identifier（对书名与首章链接取 sha1，多次导出可被阅读器合并为同一本书）+ 内嵌排版 CSS |
+| MD / TXT 导出 | MD 保留 `h2`/`h3` 层级、列表、引用、图片引用；TXT 拍平为纯文本 |
+| 书架 + 追更 | `~/.zhihu_downloader/shelf.json` 记录已下载章节，增量比对只下新章 |
+| doctor 诊断 | Cookie 存在与权限、`z_c0` / `zse_ck` / `d_c0`、**签名自检**、限速合理性、网络探测、**断点缓存磁盘占用**（统计默认输出目录，超 500MB 给 prune 指引）；区分「Cookie 失效」与「签名轮换」两条排障路径 |
+| 新版本提示 | doctor 与 GUI 启动时查 GitHub Releases 最新版（10 秒超时、失败静默），`--no-update-check` 可关闭 |
+| 零构建 Web UI | 原生 HTML/CSS/JS，无 Node、无打包器；深浅色主题，SSE 断线自动降级为轮询 |
 
-| URL 类型 | 示例 | 说明 |
-|----------|------|------|
-| 公开回答 | `https://www.zhihu.com/question/<id>/answer/<id>` | 默认最佳支持，直接解析正文 |
-| 专栏文章 | `https://zhuanlan.zhihu.com/p/<id>` | 公开专栏，直接解析正文 |
-| 盐选专栏 | `https://www.zhihu.com/market/paid_column/<col_id>` | 下载整本书目录，需 Cookie 含有效 `z_c0` |
-| 盐选单章节 | `https://www.zhihu.com/market/paid_column/<col_id>/section/<sec_id>` | 仅下载该章节，需有效 `z_c0` |
-| story.zhihu.com 非仅APP形式 | `https://story.zhihu.com/manuscript/paid_column/...` | 若同一内容在网页端有对应 market URL 且可读，则可用 |
+## 支持的链接
 
-### 暂不支持
+| 链接类型 | 示例 | 支持 | 说明 / 替代方案 |
+|---|---|---|---|
+| 盐选专栏（整本） | `https://www.zhihu.com/market/paid_column/1234567890123456789` | ✅ | 先抓目录再逐章下载，需要有效登录 Cookie |
+| 盐选单章节 | `https://www.zhihu.com/market/paid_column/1234/section/5678` | ✅ | 只下该章；要整本请给专栏目录页链接 |
+| 公开回答 | `https://www.zhihu.com/question/123456/answer/789012` | ✅ | 按单篇文章下载正文 |
+| 知乎专栏文章 | `https://zhuanlan.zhihu.com/p/123456` | ✅ | 同上，`urltype.detect` 独立识别为 `zhuanlan` |
+| 仅 APP 内阅读 | `https://story.zhihu.com/manuscript/paid_column/1234/5678` | ❌ | 需要知乎移动端私有 `mst`/`xsec` 设备签名，本项目**不会**去逆向（见下方红线）。**换成网页版链接就能下**，替换规则见下表后 |
+| 非知乎链接 | `https://example.com/...` | ❌ | 只接受 `zhihu.com` 及其子域 |
 
-- **「仅 APP 内阅读」盐选小说**：`story.zhihu.com/manuscript/paid_column/...` 中只能在知乎 APP 内打开的内容。
-  原因：接口请求需要 APP 级 `mst` / `xsec` 签名与设备信息（如 `x-zse-96`），
-  网页端没有合法入口，当前版本无法直接下载正文（传入此类 URL 会给出明确提示而非静默失败）。
+**story 链接怎么换成网页版**（把 ID 照抄进模板即可，两条规则）：
 
-### 替代方案
+- 整本：`story.zhihu.com/manuscript/paid_column/1234` → `www.zhihu.com/market/paid_column/1234`
+- 单章：`story.zhihu.com/manuscript/paid_column/1234/5678` → `www.zhihu.com/market/paid_column/1234/section/5678`
 
-1. **优先找同一内容的 web market URL**：将 `story.zhihu.com/manuscript/paid_column/<col_id>`
-   替换为 `https://www.zhihu.com/market/paid_column/<col_id>`（章节同理补 `/section/<sec_id>`），
-   网页端能正常打开并看到正文即可下载。
-2. **使用 APP 内人工方式**：利用知乎 APP 的缓存 / 截图 / 手动复制保存正文，再配合本工具整理导出。
-3. **网页可读但有 zse-ck 反爬**：更新 Cookie（确保含 `z_c0` 与可用的 `zse_ck`），
-   并参考仓库中新增的 `x-zse-96` 签名模块重新生成请求头。
+嫌手工改麻烦就直接贴原链接：工具会报错并**把替换好的网页版链接整条打出来**（消息形如
+「该链接（…）仅支持在知乎 APP 内阅读，无法直接下载。… 请改用网页版链接重试：…」），复制重贴即可。
+前提是该内容网页端也可读且你已购；纯 APP 独占内容请直接在 App 内阅读。
 
-> 完整的「URL 类型 × 支持状态 × 说明 × 替代方案」矩阵见 [docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md)。
+逐条识别规则与状态见 [docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md)。
 
-## 技术栈
+## 合规与使用限制
 
-### 后端 (Python 3.10+)
-- **Web 框架**: FastAPI + Uvicorn（ASGI）
-- **数据校验**: Pydantic v2（严格模式）
-- **ORM**: SQLAlchemy 2.x（async）
-- **任务队列**: NATS JetStream
-- **插件系统**: pluggy
-- **可观测性**: OpenTelemetry
-- **认证**: JWT + API Key + 限流（令牌桶）
-- **CLI**: Click
-- **打包**: PyInstaller
-- **包管理**: uv
+使用本工具前请仔细阅读以下限制：
 
-### 前端 (React 18)
-- **状态管理**: Zustand（客户端状态）+ TanStack Query（服务端状态）
-- **UI 库**: Radix UI（无样式可访问组件）+ Lucide Icons
-- **样式**: Tailwind CSS 3.4 + CSS 变量主题（亮/暗）
-- **国际化**: i18next + react-i18next（中/英）
-- **构建**: Vite 6（路径别名、代码分割、代理）
-- **通知**: Sonner
+- **仅下载已授权内容**：只可下载你本人已购买、已订阅或已获授权访问的盐选内容，仅用于个人离线备份。
+- **不绕过付费墙**：本工具不破解、不绕过任何付费墙或权限校验；未购买 / 无权限的内容下载不到。
+- **默认限速**：默认 2 请求/秒，合理区间 **0.5~5** 由 `doctor` 单源定义，命令行与图形界面共用同一区间、超界一律钳制
+  （填 0 也不会「不限速」）。请勿为规避平台限制而无限调高。
+- **禁止再分发**：禁止把下载内容用于传播、上传网盘或资源站、商业用途或任何侵犯版权的行为；请勿去除版权声明。
+- **遵守服务条款**：请遵守[《知乎用户协议》](https://www.zhihu.com/terms)及相关法律法规（如《中华人民共和国著作权法》）。
 
-### 桌面端 (Tauri 2.x)
-- **Rust 后端**: 进程管理、托盘菜单、插件系统
-- **Webview**: 嵌入前端 Web 资源
-- **Tauri 插件**: dialog / fs / shell / notification / store / os / log
-- **跨平台打包**: NSIS / MSI / DEB / AppImage / DMG
+> 使用即表示你同意以上限制；因违规使用产生的法律风险由使用者自行承担。
 
-## 快速开始
+### 我们「永不做」（信任承诺）
 
-### 环境要求
+以下是写进[路线图红线](docs/ROADMAP.md)的产品边界，任何版本都不会出现：
 
-- **Python** 3.10+
-- **Node.js** 18+
-- **Rust** 1.77+（仅桌面端）
-- **uv** 包管理器
+- ❌ 绕过付费墙 / 下载未购内容
+- ❌ 逆向知乎 APP 端 `mst` / `xsec` 设备签名，抓「仅 APP 内阅读」内容
+- ❌ 代理池 / 多账号轮换 / 任何对抗风控的能力
+- ❌ 内置资源库、搜索盗版源、任何分发或营利功能
+- ❌ 为了便于传播而抹除权利标识：清洗只针对平台自带的推广性脚标（`@知乎`、裸 `zhihu.com`、**块首独立**的
+  `来源：` / `出处：` 短行、`相关推荐`），不是作者署名或版权段落；书名、作者、章节结构在 txt / md / epub 里都保留，
+  正文句子中间的「出处：《某书》」也不会被删（规则锚定在块首）。拿本项目当「去水印工具」不在用途范围内。
 
-### 一键脚本
+### 为什么它「最抗失效」
 
-```bash
-# 1. 安装 uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
+盐选垂直工具最常见的死法，是知乎轮换一次 `x-zse-96` 签名就哑掉三个月。本项目的结构性答案：
 
-# 2. 同时启动后端和前端（推荐）
-./scripts/dev.sh
+1. `doctor` 做**本地签名自检**：用你的 `d_c0` 对固定 URL 生成 `x-zse-96` 并校验版本前缀，
+   一句话告诉你是「Cookie 掉了（重新登录）」还是「签名算法过期了（升级工具）」，不用瞎猜、不用等报错；
+2. 启动与 doctor 时自动检查 GitHub 新版本并给出下载链接；
+3. v5.1 计划中的签名常量热补丁通道，把修复窗口从数天压到分钟级。
 
-# 或分别启动
-./scripts/dev.sh --backend
-./scripts/dev.sh --frontend
-```
+## 本地服务的边界
 
-启动后访问：
-- 前端: <http://localhost:5173>
-- 后端 API: <http://localhost:3000/docs>
-- 健康检查: <http://localhost:3000/api/health>
+GUI 只是本机进程：默认监听 `127.0.0.1`，写接口校验请求来源（Origin/Referer 必须指向本机），
+`/api/cookies` 只回布尔不回传 Cookie 值，导出文件按任务登记的白名单取用，全站响应带 CSP / `nosniff` /
+`X-Frame-Options: DENY` / `no-store`。它**没有账号体系**，所以「谁能连到这个端口」就等于「谁能用你的登录态」：
 
-### 手动启动
+- 用 `--host` 绑到非回环地址时，启动时打印的安全告警会**逐条列出四件事**，本文与它同口径：
+  ① 用你的知乎账号发起下载（花你的配额、写你的硬盘）；② 下载你已导出的全部文件；③ 覆盖或清除你的登录 Cookie；
+  ④ 借本工具访问你内网里的其它服务（路由器后台、云主机 metadata、只监听了本机的端口）。
+  本服务**没有账号体系** —— 能连上这个端口的，就等同于本机使用者：来源校验只约束浏览器，不约束直接连端口的程序。
+  只想本机用就别改 `--host`。
+- 粘贴的链接里含 `@` 或反斜杠时会被直接拒绝（400 / 中文报错）。**这是保护，不是 bug**：这类写法是
+  「闸门看到的域名」与「HTTP 栈真正连出去的主机」不一致的经典差分载荷（例如指向本机端口或内网地址），
+  本项目让闸门与 HTTP 栈用同一个解析器并硬拒这类字符，代价就是它们永远进不了下载队列。
 
-#### 后端
+## 命令行速查
+
+（接口契约见规格书 §2.15；安装方式见[开发者安装](#开发者安装)）
 
 ```bash
-# 安装依赖
-uv sync
-
-# 启动 API 服务
-uv run zhihu-downloader serve --host 0.0.0.0 --port 3000
-
-# 或开发模式（热重载）
-uv run zhihu-downloader serve --reload
+zhihu-downloader login [--browser]              # 扫码（终端打印二维码图片路径）；--browser 从浏览器导入
+zhihu-downloader download --url U [-f txt|md|epub] [-o DIR] [--no-resume]
+                              [--rate-limit R] [--workers N] [--batch-file F]
+     # 想更快只能调 --rate-limit（不建议超过 5）；--workers 只重叠网络等待与并行解析，不提速
+zhihu-downloader shelf [list|remove ID|update [--all]]    # 书架：列出 / 删除条目 / 追更
+zhihu-downloader doctor [--no-network] [--cookie-file F]  # 诊断（Cookie 权限、签名自检、新版本提示）
+zhihu-downloader gui [--host H] [--port P] [--no-browser] # 起本地服务并自动开浏览器（端口被占自动 +1 重试 3 次）
+zhihu-downloader --version
 ```
 
-#### 前端
+裸启动（不给任何子命令）等价于 `gui`，这就是双击 EXE 即进图形界面的原因。
 
 ```bash
-cd web
-npm install          # 安装依赖
-npm run dev          # 开发模式（http://localhost:5173）
-npm run build        # 生产构建（输出到 dist/）
-npm run type-check   # TypeScript 类型检查
+zhihu-downloader login                       # 1. 扫码登录
+zhihu-downloader doctor                      # 2. 自检：缺 d_c0、权限过松都会直说
+zhihu-downloader download --url "https://www.zhihu.com/market/paid_column/1234" -f epub -o ~/Books
+zhihu-downloader shelf list                  # 3. 看书架
+zhihu-downloader shelf update --all          # 4. 追更：只下新增章节
 ```
 
-#### 桌面端
+不写 `-o` 时，CLI 默认落在当前目录的 `./output/`，GUI 默认落在 `~/.zhihu_downloader/output/`；
+`--rate-limit` 合理区间 0.5~5（超上限会被钳制，doctor 也会提示），`--workers` 默认 3、可钳到 1~8。
+
+## 常见问题
+
+- **报 HTTP 403 /「请求被知乎反爬拦截」怎么办？** 先跑 `zhihu-downloader doctor`，它会分流两种原因：
+  Cookie 缺失或过期 → 重新 `login`；签名自检报 error → 算法与线上不匹配（不是你的 Cookie 问题），
+  去 Releases 升级到最新版。403 不做无谓重试，但已完成章节留在断点里，修好后重跑同一条 `download` 命令即续传。
+- **下到一半失败了，前面的白下了吗？** 没有。中止前已完成章节已写进 `<输出目录>/.zhihu_state/`，
+  错误消息末尾也会告诉你「重新运行同一命令续传剩余章节」。章节正文缓存坏了不用管 —— 那一章会被自动重取
+  （自愈）。只有两种情况才真需要重下整本：你手动加了 `--no-resume`，或 `.zhihu_state/` 里的**状态文件**损坏
+  且你不愿手工删它（此时报错消息会直接把这两条出路写给你）。
+- **能下公开回答或专栏文章吗？** 能。`question/.../answer/...` 与 `zhuanlan.zhihu.com/p/...` 按单篇文章处理，
+  CLI 的 `download` 与 GUI 输入框都接受；只有「仅 APP 内阅读」的 `story.zhihu.com` 需要换成网页版链接（见上表）。
+- **Windows 提示「已保护你的电脑」？** 本项目无代码签名证书，未签名的 PyInstaller 单文件包会被 SmartScreen 拦截：
+  点「更多信息」→「仍要运行」。想更稳妥，可核对 Release 附件里的 `SHA256SUMS.txt`：
+  `certutil -hashfile zhihu-downloader-<版本>-windows-x64.exe SHA256`。
+- **macOS 提示「无法验证开发者」？** 右键点击二进制 →「打开」；或解除隔离属性：
+  `xattr -d com.apple.quarantine ./zhihu-downloader-<版本>-macos-arm64`。
+- **Cookie 存在哪里？权限对吗？** `~/.zhihu_downloader/cookies.json`：以 `O_CREAT|O_EXCL` + `0600` 原子创建
+  （创建瞬间就是私有权限，没有「先落盘再 chmod」的窗口），再用 `os.replace` 换入。POSIX 下权限过松时
+  doctor 会 warn 并给出 `chmod 600` 建议；Windows 无 POSIX chmod 语义，doctor 会如实降级为 info 提示
+  （真实边界由 NTFS ACL 决定，别把该目录同步到 OneDrive 等共享位置）。退出登录：删掉该文件即可。
+- **GUI 能被局域网其他设备访问吗？** 不建议。默认只监听 `127.0.0.1`；`--host` 给非回环地址时启动会打印安全告警，
+  具体四条风险见[本地服务的边界](#本地服务的边界)。
+- **为什么我粘的链接被说成非法？** 若链接里含 `@` 或反斜杠，那是闸门在拦 SSRF 差分载荷（见
+  [本地服务的边界](#本地服务的边界)）；换成浏览器地址栏里复制出来的干净链接即可。
+- **正文里夹着推广文字？** 清洗器按内置词表**整块**过滤平台推广脚标（广告/推广、`@知乎`、裸 `zhihu.com`、
+  块首的 `来源：` / `出处：` 短行、`相关推荐`）；只有整块命中才删，不会因为「某行少于 3 字」误杀「好。」这类合法段落。
+  边界要说清：`来源|出处` 只杀**块首且冒号后不超过 30 字**的独立脚标行，句中「这段引文的出处：《清史稿》」保留；
+  代价是 `本文来源：…` 这种带前缀的脚标**按设计漏删** —— 删错正文比留个尾巴严重得多。想追加规则目前只能走库层
+  参数 `clean(article, extra_patterns=["正则"])`：**界面与命令行都没有词表开关，v5 也刻意不做配置文件**；漏网的推广块
+  请连同链接反馈到 Issues，我们更倾向改内置词表而不是加开关。
+
+## 开发者安装
 
 ```bash
-cd web
-npm install
-
-# 首次需要先生成图标
-python3 ../scripts/generate_tauri_icons.py
-
-# 开发模式（自动启动 Vite + Rust）
-npm run tauri:dev
-
-# 构建当前平台发布包
-./scripts/build-desktop.sh
-
-# 指定平台
-./scripts/build-desktop.sh --linux
-./scripts/build-desktop.sh --windows
-./scripts/build-desktop.sh --macos
+git clone https://github.com/xfengyin/zhihu-salt-novel-downloader
+cd zhihu-salt-novel-downloader
+pip install -e ".[dev]"              # 带 pytest / ruff / httpx
+python -m pytest tests -q            # 全部离线：mock 只在 requests.Session 边界，零真实网络
+zhihu-downloader gui --no-browser    # 冒烟：起服务但不自动开浏览器（默认 127.0.0.1:3000，被占自动 +1 重试 3 次）
+zhihu-downloader doctor --no-network --no-update-check   # 冒烟：完全离线的自检
 ```
 
-## 项目结构
+可选 `pip install -e ".[browser]"` 启用浏览器 Cookie 导入。运行时依赖只有 5 个：
+`requests` / `beautifulsoup4` / `fastapi` / `uvicorn` / `ebooklib`，Python ≥ 3.10。
 
-```
-zhihu-salt-novel-downloader/
-├── src/zhihu_downloader/        # Python 后端
-│   ├── api/                     # FastAPI 应用层
-│   │   ├── app.py               # 应用工厂（中间件、路由、异常处理）
-│   │   ├── dependencies.py      # 依赖注入
-│   │   ├── errors.py            # RFC 7807 Problem 异常
-│   │   ├── schemas.py           # Pydantic 契约（前后端对齐）
-│   │   ├── tasks.py             # 任务管理与 SSE 事件流
-│   │   └── routers/             # 路由模块（auth/books/download/...）
-│   ├── auth/                    # 认证模块
-│   │   ├── jwt_auth.py          # JWT 签发与校验
-│   │   ├── api_key_manager.py   # API Key 管理
-│   │   ├── cookie_manager.py    # Cookie 装载
-│   │   ├── browser_cookie.py    # 浏览器自动读取
-│   │   ├── rate_limiter.py      # 令牌桶限流
-│   │   └── user_agent.py        # UA 轮换
-│   ├── core/                    # 核心下载器
-│   │   ├── downloader.py        # 异步下载主循环
-│   │   ├── rate_limiter.py      # 限流
-│   │   ├── circuit_breaker.py   # 熔断
-│   │   ├── cache.py             # 响应缓存
-│   │   ├── proxy_pool.py        # 代理池
-│   │   └── ua_rotator.py        # UA 轮换
-│   ├── parsers/                 # 内容解析
-│   │   ├── article_parser.py
-│   │   └── chapter_classifier.py
-│   ├── exporters/               # 多格式导出
-│   │   ├── base_exporter.py     # 抽象基类
-│   │   ├── txt_exporter.py
-│   │   ├── md_exporter.py
-│   │   ├── epub_exporter.py
-│   │   └── mobi_exporter.py
-│   ├── plugins/                 # 插件系统（pluggy SPI）
-│   │   ├── protocol.py          # 插件协议
-│   │   ├── manager.py           # 插件管理器
-│   │   ├── specs.py             # 插件规范
-│   │   ├── sources/             # 数据源插件
-│   │   └── exporters/           # 导出器插件
-│   ├── services/                # 业务编排层
-│   │   ├── download_service.py  # 下载编排
-│   │   ├── shelf_service.py     # 书架业务
-│   │   └── events.py            # 进度事件模型
-│   ├── shelf/                   # 书架存储
-│   │   └── shelf_manager.py
-│   ├── infra/                   # 基础设施
-│   │   ├── database.py          # 异步 SQLAlchemy
-│   │   ├── models.py            # ORM 模型
-│   │   └── repository.py        # 仓储模式
-│   ├── observability/           # 可观测性
-│   │   ├── otel_config.py       # OTel 配置
-│   │   ├── tracing.py           # 链路追踪
-│   │   └── metrics.py           # 指标
-│   ├── tasks/                   # 任务编排
-│   │   ├── nats_queue.py        # NATS JetStream
-│   │   ├── state_machine.py     # 状态机
-│   │   └── task_manager.py      # 任务管理
-│   ├── utils/                   # 工具
-│   │   ├── config.py            # 配置
-│   │   ├── logging_setup.py     # 日志
-│   │   ├── retry.py             # 重试
-│   │   ├── security.py          # 安全工具
-│   │   ├── content_cleaner.py   # 内容清洗
-│   │   ├── checkpoint.py        # 断点
-│   │   └── trace_context.py     # TraceId
-│   └── cli.py                   # CLI 入口（含 serve 子命令）
-│
-├── web/                         # 前端 + 桌面端
-│   ├── src/
-│   │   ├── api/                 # REST 客户端
-│   │   │   ├── client.ts        # axios 封装（TraceId/Token 注入）
-│   │   │   ├── auth.ts          # 认证 API
-│   │   │   ├── shelf.ts         # 书架 API
-│   │   │   ├── download.ts      # 下载 API（含 SSE）
-│   │   │   └── plugins.ts       # 插件 API
-│   │   ├── components/          # 组件
-│   │   │   ├── ui/              # 基础 UI（Button/Card/Dialog/...）
-│   │   │   ├── Layout.tsx       # 主布局（侧边栏）
-│   │   │   └── ErrorBoundary.tsx
-│   │   ├── hooks/               # 自定义 Hook
-│   │   │   ├── queries.ts       # TanStack Query
-│   │   │   ├── useDownloadProgress.ts  # SSE 进度
-│   │   │   ├── useTheme.ts      # 主题切换
-│   │   │   └── useTauri.ts      # Tauri 环境检测
-│   │   ├── store/               # Zustand
-│   │   │   ├── authStore.ts     # 认证
-│   │   │   └── appStore.ts      # 应用设置
-│   │   ├── pages/               # 页面
-│   │   │   ├── HomePage.tsx
-│   │   │   ├── DownloadPage.tsx
-│   │   │   ├── LibraryPage.tsx
-│   │   │   ├── TasksPage.tsx
-│   │   │   └── SettingsPage.tsx
-│   │   ├── lib/                 # 工具
-│   │   │   ├── utils.ts         # 通用工具
-│   │   │   ├── queryClient.ts   # TanStack Query 配置
-│   │   │   └── tauri.ts         # Tauri API 封装
-│   │   ├── i18n/                # 国际化
-│   │   ├── types/               # TypeScript 类型
-│   │   ├── App.tsx              # 应用入口
-│   │   └── main.tsx             # 渲染入口
-│   ├── src-tauri/               # Tauri 桌面端 Rust 后端
-│   │   ├── src/
-│   │   │   ├── main.rs          # 入口
-│   │   │   ├── lib.rs           # 应用主体
-│   │   │   ├── commands.rs      # Tauri 命令
-│   │   │   ├── backend.rs       # 后端进程管理
-│   │   │   └── error.rs         # 错误处理
-│   │   ├── capabilities/        # Tauri 权限
-│   │   ├── icons/               # 应用图标
-│   │   ├── tauri.conf.json      # Tauri 配置
-│   │   └── Cargo.toml
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   ├── tsconfig.json
-│   └── package.json
-│
-├── scripts/                     # 辅助脚本
-│   ├── dev.sh                   # 启动开发环境
-│   ├── build-desktop.sh         # 打包桌面端
-│   └── generate_tauri_icons.py  # 生成图标
-│
-├── docs/                        # 设计文档
-├── pyproject.toml
-├── uv.lock
-└── README.md
-```
+## 文档
 
-## API 概览
-
-| 模块 | 端点 | 说明 |
-|------|------|------|
-| 健康 | `GET /api/health` | 健康检查 |
-| 认证 | `POST /api/auth/login` | 登录 |
-| 认证 | `POST /api/auth/register` | 注册 |
-| 认证 | `POST /api/auth/refresh` | 刷新 token |
-| 认证 | `POST /api/auth/qrcode` | 创建扫码登录会话（返回二维码） |
-| 认证 | `GET /api/auth/qrcode/{token}/status` | 轮询扫码确认状态，成功后保存 Cookie |
-| 用户 | `GET /api/users/me` | 当前用户 |
-| 下载 | `POST /api/downloads` | 启动下载 |
-| 下载 | `GET /api/downloads` | 任务列表 |
-| 下载 | `GET /api/downloads/{id}` | 任务状态 |
-| 下载 | `GET /api/downloads/{id}/events` | SSE 进度流 |
-| 下载 | `POST /api/downloads/{id}/cancel` | 取消 |
-| 书架 | `GET /api/shelves` | 书籍列表 |
-| 书架 | `POST /api/shelves` | 添加书籍 |
-| 书架 | `DELETE /api/shelves/{url}` | 删除 |
-| 书架 | `GET /api/shelves/stats` | 统计 |
-| 插件 | `GET /api/plugins` | 插件列表 |
-| 插件 | `POST /api/plugins` | 安装 |
-| 插件 | `DELETE /api/plugins/{id}` | 卸载 |
-
-完整 OpenAPI 文档: <http://localhost:3000/docs>
-
-## 开发命令
-
-### 后端
-
-```bash
-# CLI 子命令
-uv run zhihu-downloader download --url <URL> --format md
-uv run zhihu-downloader download --batch-file urls.txt
-uv run zhihu-downloader download --url <URL> --auto-cookie
-uv run zhihu-downloader shelf --list
-uv run zhihu-downloader shelf --add <URL>
-uv run zhihu-downloader serve --port 3000 --reload
-
-# 测试与质量
-uv run pytest                       # 单元测试
-uv run ruff check .                 # Lint
-uv run mypy src/                    # 类型检查
-```
-
-### 前端
-
-```bash
-cd web
-
-npm run dev          # 开发服务器
-npm run build        # 生产构建
-npm run preview      # 预览生产构建
-npm run type-check   # TypeScript 类型检查
-npm run lint         # ESLint
-npm run format       # Prettier 格式化
-```
-
-### 桌面端
-
-```bash
-cd web
-
-# 开发模式
-npm run tauri:dev
-
-# 构建当前平台
-./scripts/build-desktop.sh
-
-# 构建特定平台
-./scripts/build-desktop.sh --linux
-./scripts/build-desktop.sh --macos
-./scripts/build-desktop.sh --windows
-```
-
-## 扫码登录
-
-扫码登录是 Web UI 推荐的登录方式，无需手动导出 Cookie。登录成功后会自动保存知乎
-Cookie（`z_c0` / `zse_ck`），下载时自动使用。
-
-### Web UI
-
-1. 启动后端与前端（见上方「快速开始」）；
-2. 打开 Web 界面，点击「扫码登录」按钮；
-3. 页面展示二维码后，用知乎 App 扫码并确认登录；
-4. 页面自动轮询扫码状态，登录成功后 Cookie 自动保存，即可开始下载。
-
-### CLI
-
-扫码登录主要在 Web UI 中使用。CLI 仍支持以下认证方式：
-
-```bash
-# 从 Cookie JSON 文件加载
-uv run zhihu-downloader download --url <URL> --cookie-file cookies.json
-
-# 直接传入 z_c0 token
-uv run zhihu-downloader download --url <URL> --token "<z_c0>"
-
-# 自动从浏览器读取 Cookie
-uv run zhihu-downloader download --url <URL> --auto-cookie
-```
-
-### 常见问题
-
-- **二维码过期**：知乎登录二维码有时效，过期后刷新页面或重新点击「扫码登录」获取新二维码。
-- **登录后仍返回 403**：请确认该账号具备盐选阅读权限（已购买或开通会员）；若网页端本身无权限，
-  工具也无法下载付费正文。同时确保已保存的 Cookie 含有效 `z_c0` 与 `zse_ck`。
-- **Cookie 保存位置**：扫码登录成功后，Cookie 由后端保存在本地（`z_c0` / `zse_ck`），
-  后续下载会自动读取，无需重复扫码。Cookie 属敏感信息，请勿外泄；具体文件位置见后端日志与配置。
-
-## 使用示例
-
-### 1. CLI 下载
-
-```bash
-# 单本下载
-uv run zhihu-downloader download \
-  --url "https://www.zhihu.com/market/book/12345" \
-  --format epub \
-  --output-dir ./books
-
-# 批量下载（文件每行一个 URL）
-echo "https://www.zhihu.com/market/book/12345" > urls.txt
-echo "https://www.zhihu.com/market/book/67890" >> urls.txt
-uv run zhihu-downloader download --batch-file urls.txt
-
-# 自动从浏览器读取 Cookie
-uv run zhihu-downloader download --url <URL> --auto-cookie
-
-# 断点续传
-uv run zhihu-downloader download --url <URL> --resume
-```
-
-### 2. Web 界面
-
-1. 启动后端：`./scripts/dev.sh --backend`
-2. 启动前端：`./scripts/dev.sh --frontend`
-3. 访问 <http://localhost:5173>
-4. 首次使用先点击「扫码登录」，用知乎 App 扫码确认（见上方「扫码登录」）
-5. 在「下载」页粘贴小说 URL，选择格式后点击开始
-6. 实时查看 SSE 推送的下载进度
-7. 下载完成后在「书架」页管理书籍
-
-### 3. 桌面端
-
-1. 启动开发模式：`cd web && npm run tauri:dev`
-2. 应用窗口自动打开，无需手动启动后端（Rust 端自动 spawn）
-3. 生产构建：`./scripts/build-desktop.sh`
-4. 产物路径：`web/src-tauri/target/release/bundle/`
-
-## 架构亮点
-
-### 后端
-- **依赖倒置**: Service 层依赖 Protocol 接口，Downloader/Exporter/Sorter 通过 SPI 解耦
-- **开闭原则**: 新增数据源/导出器只需注册插件，主流程不变
-- **可观测性**: TraceId 全链路透传 + OpenTelemetry 指标
-- **高可用**: 熔断器 + 限流 + 重试 + 多实例一致状态
-- **可扩展**: NATS JetStream 任务队列，水平扩展 Worker
-
-### 前端
-- **关注点分离**: API 层（client.ts）+ 状态层（store）+ 视图层（pages）
-- **错误边界**: ErrorBoundary 捕获组件错误
-- **类型契约**: TypeScript 接口与后端 Pydantic 严格对齐
-- **i18n**: 中英文 200+ 翻译键，自动检测浏览器语言
-- **主题系统**: 亮色/暗色/跟随系统，CSS 变量驱动
-- **响应式**: Tailwind 断点适配桌面/平板/手机
-
-### 桌面端
-- **进程管理**: Rust 端 spawn / kill 后端子进程
-- **优雅退出**: 关闭主窗口仅隐藏到托盘
-- **能力隔离**: Tauri capabilities 细粒度权限控制
-- **存储抽象**: Tauri Store + localStorage 双重 fallback
-
-## 合规声明
-
-> ⚠️ **重要提示**：
->
-> 本工具仅限用于已购买内容的**个人离线阅读**。
->
-> 请勿使用本工具进行任何形式的：
-> - 内容分发
-> - 商业使用
-> - 侵权传播
->
-> 使用本工具即表示您同意承担相关法律责任。
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) —— v5 实际架构、任务生命周期、状态文件布局、关键决策记录
+- [docs/SUPPORT_MATRIX.md](docs/SUPPORT_MATRIX.md) —— URL 类型支持矩阵（对齐 `parse/urltype.py`）
+- [docs/ARCHITECTURE_SPEC.md](docs/ARCHITECTURE_SPEC.md) —— 团队接口契约（并行开发的唯一事实源）
+- [docs/ROADMAP.md](docs/ROADMAP.md) —— v5.0 / v5.1 / v5.2+ 与「永不做」红线
+- [CHANGELOG.md](CHANGELOG.md) —— 版本变更；GitHub Release 的说明正文直接取这里的对应段落
 
 ## License
 
-MIT License
-
-## 云端发布（CI/CD）
-
-项目集成 GitHub Actions，推送 `v*` 标签即可自动构建并发布 5 个平台包到 GitHub Releases。
-
-### 触发发布
-
-```bash
-# 1. 提交代码
-git add . && git commit -m "release: v3.1.0"
-
-# 2. 创建 tag
-git tag v3.1.0
-
-# 3. 推送 tag 触发 CI
-git push origin v3.1.0
-```
-
-### 工作流清单
-
-| Workflow | 触发 | 产物 |
-|----------|------|------|
-| [build-tauri.yml](.github/workflows/build-tauri.yml) | `v*` tag / 手动 | Windows .msi+.nsis、macOS universal .dmg、Linux .deb+.AppImage、Web 静态 zip |
-| [build-windows.yml](.github/workflows/build-windows.yml) | `v*` tag / 手动 | Windows 单文件 EXE（PyInstaller） |
-
-### Runner 策略
-
-- **Windows**: `windows-latest`（原生编译 Tauri，无需 Wine）
-- **macOS**: `macos-latest`（universal-apple-darwin 目标，一次产出 Intel + Apple Silicon）
-- **Linux**: `ubuntu-22.04`（Tauri 2.x 完整系统依赖：webkit2gtk-4.1、gtk-3、librsvg2 等）
-
-### 加速手段
-
-- `Swatinem/rust-cache@v2` 缓存 cargo 依赖
-- `actions/setup-node@v4` + `cache: 'npm'` 缓存 npm 依赖
-- `actions/cache@v4` 缓存 Windows Python 解释器
-
-### 手动触发
-
-进入 GitHub → Actions → 选择 workflow → Run workflow，无需 tag 即可构建（产物仅上传 artifact，不发 Release）。
+[MIT](LICENSE)

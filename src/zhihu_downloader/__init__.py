@@ -1,19 +1,10 @@
-"""知乎盐选小说下载器 - 企业级异步并发下载工具"""
+"""知乎盐选小说下载器 v5 —— 单文件应用：CLI 内核 + 本地 Web UI。
 
-__version__ = "3.1.0"
-__author__ = "xfengyin"
-__license__ = "MIT"
+设计原则（v5 重构）：
+- 同步内核 + 线程池（限速内并发），不引入 asyncio，保持易读、易 mock、易维护；
+- 零构建步骤：Web UI 为原生 HTML/CSS/JS，无 Node 依赖；
+- 断点续传、章节级进度、书架追更是核心体验，不是可选项；
+- 仅用于下载本人已购内容做个人离线备份。
+"""
 
-from zhihu_downloader.core.downloader import AsyncDownloader
-from zhihu_downloader.exporters.epub_exporter import EpubExporter
-from zhihu_downloader.parsers.article_parser import ArticleParser
-from zhihu_downloader.services.download_service import DownloadService
-from zhihu_downloader.services.shelf_service import ShelfService
-
-__all__ = [
-    "ArticleParser",
-    "AsyncDownloader",
-    "DownloadService",
-    "EpubExporter",
-    "ShelfService",
-]
+__version__ = "5.0.0"
