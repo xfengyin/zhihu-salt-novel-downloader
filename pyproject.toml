@@ -44,9 +44,8 @@ Issues = "https://github.com/xfengyin/zhihu-salt-novel-downloader/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/zhihu_downloader"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/zhihu_downloader/app/static" = "zhihu_downloader/app/static"
+# 注意：packages 已含 app/static 全部文件——不要再加 force-include 映射同一目标路径，
+# hatchling 会以 "second file at the same path" 直接炸 wheel 构建（v5.0.0 CI 三平台同挂的根因）。
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
