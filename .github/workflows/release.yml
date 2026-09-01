@@ -1,115 +1,49 @@
 # ============================================================================
-# GitHub Actions - CLI 发布流水线（issue #3）
+# GitHub Actions - v5 发布流水线：单 tag → 全矩阵 → 聚合发布
 # ============================================================================
-# 触发条件：
-#   1. 推送 v* 标签（如 v3.1.0）→ 构建两个平台的 CLI 产物并发布到 GitHub Release
-#   2. 手动触发（workflow_dispatch）→ 仅构建并上传 artifact，便于在合并前验证
-#
-# 产物矩阵（本次只发 CLI 产物，Tauri GUI 走独立流水线 build-tauri.yml）：
-#   - Linux x86_64  : zhihu-downloader-<version>-linux-x64.tar.gz   （ubuntu-24.04 + Python 3.12）
-#   - Windows x64    : zhihu-downloader-<version>-windows-x64.zip   （windows-2022 + Python 3.12）
-#
-# 设计要点：
-#   - 每个平台用 native runner 直接跑 PyInstaller（Windows 不交叉编译，避免 Wine 依赖地狱）
-#   - 依赖来源单一：`pip install .` 按 pyproject.toml 安装全部运行时依赖 + pyinstaller
-#   - 复用仓库现有 pyinstaller.spec（onefile，入口 src/zhihu_downloader/__main__.py）
-#   - GUI 前端资源不在本流水线构建，spec 检测不到 web/dist 时会降级为「纯 CLI」并打印警告
-#   - 权限最小化：顶层只给 contents: read，仅 release 任务升级为 contents: write
+# 终结 v3*/v4* 前缀路由乱象（v4 教训）：
+#   - 旧仓库 release.yml 吃 v*、release-simple.yml 吃 v4*，互斥路由各发 2 包，
+#     README 承诺的「tag 发 5 平台包」里 Tauri 步骤是永假死代码；
+#   - v5 只有一条发布通道：推 vX.Y.Z 标签 → preflight 门禁 → 三平台矩阵构建 →
+#     聚合 job 一次性挂全部资产 + SHA256SUMS + CHANGELOG 对应段。没有第二条 workflow，
+#     就没有「这个 tag 该走哪条流水线」的问题。
+# 其他教训落点：
+#   - 发布流水线零测试门禁（v4）→ preflight 跑 check_release.py + 全量 pytest，不过不发；
+#   - Linux glibc≥2.38 地板（v4 自家 LAUNCH_LOG 实锤 Debian 12 不可运行）→
+#     Linux 钉死 ubuntu-22.04（glibc 2.35），绝不用 24.04；
+#   - build_linux.sh 未引号 pyinstaller>=6.0.0 被 shell 当重定向（v4）→ 全部带引号；
+#   - 6 处版本号漂移（v4）→ tag/__init__/pyproject 三方一致由 check_release.py 强制；
+#   - 权限最小化：顶层 contents: read，仅聚合 release job 单独升级 contents: write。
+# 产物命名由 packaging/pyinstaller.spec 生成：zhihu-downloader-<version>-<platform>[.exe]
 # ============================================================================
 
-name: Release CLI (Linux + Windows)
+name: Release (tag v* → 三平台矩阵 → 聚合发布)
 
 on:
   push:
     tags:
-      - 'v3*'
-  workflow_dispatch:
+      - "v*"
 
-env:
-  PYTHON_VERSION: "3.12"
-  # Windows 默认编码为 cp1252，PyInstaller spec 中的中文 print 需要 UTF-8 输出
-  PYTHONIOENCODING: "utf-8"
-
-# 权限最小化：默认只读，创建 Release 的任务单独升级写入权限
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
 jobs:
-  # ----------------------------------------------------------------------
-  # 1. 构建 Linux x86_64 可执行文件
-  # ----------------------------------------------------------------------
-  build-linux:
-    name: Linux x64 CLI
-    runs-on: ubuntu-24.04
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: pyproject.toml
-
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
-
-      - name: 构建前端（web/dist，供 PyInstaller 打包 web_dist）
-        working-directory: web
-        run: |
-          npm ci
-          npm run build
-
-      - name: 安装依赖（pyproject.toml 全部运行时依赖 + PyInstaller）
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "pyinstaller>=6.0.0"
-          python -m pip install .
-
-      - name: PyInstaller 打包
-        run: |
-          pyinstaller pyinstaller.spec --clean -y --log-level WARN
-          ls -lh dist/
-
-      - name: 验证 CLI 可运行
-        run: |
-          file dist/zhihu-downloader
-          dist/zhihu-downloader --help | head -20
-
-      - name: 打包分发产物（含版本号与平台）
+  # --------------------------------------------------------------------------
+  # 门禁：版本一致性 + CHANGELOG + 全量测试。任一失败，后面全部不跑。
+  # --------------------------------------------------------------------------
+  preflight:
+    name: 发布前校验（版本一致性 + 全量测试）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
         shell: bash
-        run: |
-          # tag 触发用标签版本；手动触发用 dev-<短sha> 作为占位，避免分支名含斜杠等非法字符
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="dev-${GITHUB_SHA::8}"
-          fi
-          mkdir -p release
-          cp dist/zhihu-downloader release/zhihu-downloader
-          cp README.md release/README.txt
-          tar -czf "zhihu-downloader-${VERSION}-linux-x64.tar.gz" -C release .
-          ls -lh "zhihu-downloader-${VERSION}-linux-x64.tar.gz"
-          echo "ARTIFACT=zhihu-downloader-${VERSION}-linux-x64.tar.gz" >> "$GITHUB_ENV"
-
-      - name: 上传 artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zhihu-downloader-linux-x64
-          path: ${{ env.ARTIFACT }}
-          retention-days: 30
-
-  # ----------------------------------------------------------------------
-  # 2. 构建 Windows x64 可执行文件
-  # ----------------------------------------------------------------------
-  build-windows:
-    name: Windows x64 CLI
-    runs-on: windows-2022
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -118,85 +52,170 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+          cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
+      - name: 发布门禁 check_release.py（tag == __version__ == pyproject，CHANGELOG 有版本段）
+        run: python scripts/check_release.py --tag "$GITHUB_REF_NAME"
 
-      - name: 构建前端（web/dist，供 PyInstaller 打包 web_dist）
-        working-directory: web
-        run: |
-          npm ci
-          npm run build
-
-      - name: 安装依赖（pyproject.toml 全部运行时依赖 + PyInstaller）
+      - name: 安装依赖（editable 失败退回 PYTHONPATH=src）
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "pyinstaller>=6.0.0"
-          python -m pip install .
+          if pip install -e ".[dev]"; then
+            echo "[preflight] editable 安装成功"
+          else
+            echo "::warning::pip install -e .[dev] 失败，退回非 editable 安装 + PYTHONPATH=src"
+            pip install ".[dev]"
+            echo "PYTHONPATH=$GITHUB_WORKSPACE/src" >> "$GITHUB_ENV"
+          fi
 
-      - name: PyInstaller 打包
-        shell: pwsh
+      - name: 全量 pytest（发布流水线测试门禁）
+        run: python -m pytest -q
+
+  # --------------------------------------------------------------------------
+  # 矩阵构建：三平台原生 runner（Windows 不交叉编译，避开 Wine 依赖地狱）。
+  # --------------------------------------------------------------------------
+  build:
+    name: 构建 ${{ matrix.platform }}
+    needs: preflight
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            platform: windows-x64
+          # glibc 地板教训：ubuntu-22.04 = glibc 2.35（Debian 12 / Ubuntu 22.04+ 可跑）。
+          # 绝不用 ubuntu-24.04（glibc 2.38），旧版产物因此在大半 Linux 用户机器上直接不可运行。
+          - os: ubuntu-22.04
+            platform: linux-x64
+          # macos-14 = Apple Silicon arm64 原生 runner
+          - os: macos-14
+            platform: macos-arm64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: 安装运行时依赖与 PyInstaller
         run: |
-          pyinstaller pyinstaller.spec --clean -y --log-level WARN
-          Get-ChildItem dist | Select-Object Name, Length
+          python -m pip install --upgrade pip
+          pip install "."
+          # 引号必须带：v4 build_linux.sh 里未引号的 pyinstaller>=6.0.0
+          # 被 shell 当成输出重定向，装包静默失败。
+          pip install "pyinstaller>=6.0.0"
 
-      - name: 验证 CLI 可运行
-        shell: pwsh
+      - name: PyInstaller onefile 打包（spec 内产物名已带版本+平台）
+        run: pyinstaller packaging/pyinstaller.spec --clean -y --distpath dist --workpath build
+
+      - name: 校验产物存在（缺失即红，绝不静默放行，也不用 || true 吞错）
         run: |
-          dist\zhihu-downloader.exe --help | Select-Object -First 20
+          shopt -s nullglob
+          files=(dist/zhihu-downloader-*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::dist/ 下没有 zhihu-downloader-* 产物，spec 或依赖安装出了问题"
+            exit 1
+          fi
+          # 产物大小一览（Windows 的 Git-Bash 未必有 file 命令，故只用 ls）
+          ls -la dist/
 
-      - name: 打包分发产物（含版本号与平台）
-        shell: pwsh
+      - name: 未签名产物提示（SmartScreen / Gatekeeper，README 详述由 D1 维护）
         run: |
-          # tag 触发用标签版本；手动触发用 dev-<短sha> 作为占位
-          if ("${{ github.ref_type }}" -eq "tag") {
-            $version = "${{ github.ref_name }}" -replace '^v', ''
-          } else {
-            $version = "dev-$("${{ github.sha }}".Substring(0, 8))"
-          }
-          New-Item -ItemType Directory -Force -Path release | Out-Null
-          Copy-Item dist\zhihu-downloader.exe release\
-          Copy-Item web\src-tauri\icons\icon.ico release\ 2>$null
-          Copy-Item README.md release\README.txt
-          Compress-Archive -Path release\* -DestinationPath "zhihu-downloader-$version-windows-x64.zip"
-          Get-ChildItem "zhihu-downloader-$version-windows-x64.zip" | Select-Object Name, Length
-          "ARTIFACT=zhihu-downloader-$version-windows-x64.zip" >> $env:GITHUB_ENV
+          echo "=================================================================="
+          echo "本流水线无代码签名证书，产物首跑会触发系统拦截，属预期现象："
+          echo "  Windows SmartScreen：点「更多信息」→「仍要运行」；"
+          echo "  macOS Gatekeeper：右键 →「打开」，或 xattr -d com.apple.quarantine <二进制>；"
+          echo "  任何平台：下载后先核对 Release 附件里的 SHA256SUMS.txt。"
+          echo "=================================================================="
 
-      - name: 上传 artifact
+      - name: 上传本平台二进制（聚合 job 统一发布）
         uses: actions/upload-artifact@v4
         with:
-          name: zhihu-downloader-windows-x64
-          path: ${{ env.ARTIFACT }}
-          retention-days: 30
+          name: dist-${{ matrix.platform }}
+          path: dist/zhihu-downloader-*
+          if-no-files-found: error
+          retention-days: 7
 
-  # ----------------------------------------------------------------------
-  # 3. 创建 / 更新 GitHub Release（仅 tag 触发时）
-  # ----------------------------------------------------------------------
+  # --------------------------------------------------------------------------
+  # 聚合发布：needs 全部构建成功 → SHA256SUMS → 一次性挂全部资产。
+  # 全仓库唯一有写权限的 job。
+  # --------------------------------------------------------------------------
   release:
-    name: 发布 GitHub Release
-    needs: [build-linux, build-windows]
-    runs-on: ubuntu-24.04
-    if: startsWith(github.ref, 'refs/tags/v')
-    # 仅此任务需要写权限（创建 Release + 上传资产），
-    # 使用 softprops/action-gh-release@v2 内部自动取用 GITHUB_TOKEN。
+    name: 聚合发布（全部资产 + SHA256SUMS + 变更日志）
+    needs: build
+    runs-on: ubuntu-latest
     permissions:
       contents: write
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: 下载全部产物
+      - name: 检出代码（取 CHANGELOG.md）
+        uses: actions/checkout@v4
+
+      - name: 下载全部平台产物
         uses: actions/download-artifact@v4
         with:
-          path: release-artifacts
+          pattern: dist-*
           merge-multiple: true
+          path: assets
 
-      - name: 创建 / 更新 GitHub Release
+      - name: 生成 SHA256SUMS.txt
+        run: |
+          shopt -s nullglob
+          files=(assets/zhihu-downloader-*)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::未下载到任何二进制资产，发布中止"
+            exit 1
+          fi
+          (cd assets && sha256sum zhihu-downloader-* > SHA256SUMS.txt)
+          echo "---- SHA256SUMS.txt ----"
+          cat assets/SHA256SUMS.txt
+
+      - name: 从 CHANGELOG.md 抽取本版本段作为发布说明
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}" python - <<'PY'
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          text = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          head = re.compile(r"^##\s+\[?v?" + re.escape(version) + r"\]?(?!\d)", re.MULTILINE)
+          m = head.search(text)
+          if not m:
+              print(f"::error::CHANGELOG.md 找不到版本 {version} 的段落（preflight 理应已拦截）")
+              sys.exit(1)
+          rest = text[m.end():]
+          nxt = re.search(r"^##\s", rest, re.MULTILINE)
+          section = text[m.start(): m.end() + (nxt.start() if nxt else len(rest))].rstrip()
+          body = (
+              section
+              + "\n\n---\n\n"
+              + "**完整性校验**：下载后运行 sha256sum -c SHA256SUMS.txt 核对对应平台文件。\n"
+              + "**未签名提示**：本项目无代码签名证书。Windows 首跑遇 SmartScreen 点「更多信息→仍要运行」；"
+              + "macOS 用右键「打开」或 xattr -d com.apple.quarantine 解除隔离。\n"
+          )
+          Path("release_notes.md").write_text(body, encoding="utf-8")
+          print("---- release notes ----")
+          print(body)
+          PY
+
+      - name: 发布 GitHub Release（单 tag 一次挂全部资产）
         uses: softprops/action-gh-release@v2
         with:
-          files: release-artifacts/*
-          generate_release_notes: true
-          fail_on_unmatched_files: false
+          tag_name: ${{ github.ref_name }}
+          files: |
+            assets/*
+          body_path: release_notes.md
+          make_latest: "true"

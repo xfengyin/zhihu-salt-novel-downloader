@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="把知乎盐选小说下载成 txt / md / epub，方便导入墨水屏阅读器的个人备份工具。" />
+  <title>盐选书房 · 把盐选小说备份到墨水屏</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <!-- ============ 顶栏 ============ -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-logo" aria-hidden="true">盐</span>
+        <span class="brand-text">
+          <strong class="brand-name">盐选书房</strong>
+          <span class="brand-sub">小说 → 墨水屏 · 个人备份</span>
+        </span>
+      </div>
+
+      <div class="topbar-status">
+        <button id="cookie-pill" class="status-pill status-unknown" type="button"
+                aria-describedby="cookie-pill-help">
+          <span class="pill-dot" aria-hidden="true"></span>
+          <span id="cookie-pill-text">正在检查登录状态…</span>
+        </button>
+        <span id="cookie-pill-help" class="visually-hidden">点击这里查看登录详情或手动导入 Cookie。</span>
+        <!-- 折叠按钮必须留在菜单外面，否则窄屏下会被一起藏掉，菜单就打不开了 -->
+        <button id="nav-toggle" class="btn btn-icon nav-toggle" type="button"
+                aria-label="展开或收起顶部按钮" aria-expanded="false" aria-controls="topbar-actions">≡</button>
+      </div>
+
+      <div class="topbar-actions" id="topbar-actions">
+        <button id="qr-btn" class="btn btn-primary" type="button">扫码登录</button>
+        <button id="settings-btn" class="btn btn-icon" type="button"
+                aria-label="打开设置" aria-expanded="false" aria-controls="settings-drawer">⚙</button>
+        <button id="theme-toggle" class="btn btn-icon" type="button"
+                aria-label="切换深色或浅色主题" aria-pressed="false">☾</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ 主体 ============ -->
+  <main id="main" class="container" tabindex="-1">
+    <div class="grid">
+      <!-- 左栏：下载 + 进度 -->
+      <div class="col">
+        <section class="card" aria-labelledby="download-title">
+          <h2 id="download-title" class="card-title">下载一本盐选小说</h2>
+          <p class="muted card-desc">
+            在知乎 App 或网页版打开盐选专栏，点「分享 → 复制链接」，粘贴到这里即可。
+          </p>
+
+          <div id="login-hint" class="notice notice-warn" hidden>
+            <span class="notice-icon" aria-hidden="true">!</span>
+            <span>还没有登录。付费章节需要先登录知乎，点右上角<b>扫码登录</b>即可。</span>
+          </div>
+
+          <form id="download-form" novalidate>
+            <label class="field-label" for="url-input">小说链接</label>
+            <input id="url-input" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+                   placeholder="https://www.zhihu.com/market/paid_column/…"
+                   aria-describedby="url-help" />
+            <p id="url-help" class="field-help">只支持 zhihu.com 的链接，例如盐选专栏或单章页面。</p>
+            <p id="url-error" class="field-error" role="alert" hidden></p>
+
+            <div class="form-row">
+              <div class="field">
+                <label class="field-label" for="format-select">导出格式</label>
+                <select id="format-select" name="format">
+                  <option value="epub">EPUB（墨水屏推荐）</option>
+                  <option value="md">Markdown（.md）</option>
+                  <option value="txt">纯文本（.txt）</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="rate-input">限速（每秒请求数）</label>
+                <input id="rate-input" name="rate_limit" type="number" min="0" max="20" step="0.5" value="2"
+                       inputmode="decimal" aria-describedby="rate-help" />
+                <p id="rate-help" class="field-help">默认 2，是对知乎的友好节奏，建议不动。只有被频繁拦截时才需要往小调；往大调只会更容易被拦。</p>
+              </div>
+            </div>
+
+            <label class="switch" for="resume-input">
+              <input id="resume-input" name="resume" type="checkbox" checked />
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span class="switch-text">
+                <b>断点续传</b>
+                <small>中断后重新开始只补没下完的章节，不重复下载。</small>
+              </span>
+            </label>
+
+            <button id="download-btn" class="btn btn-primary btn-block" type="submit">开始下载</button>
+            <p id="download-msg" class="form-msg" role="status" aria-live="polite" hidden></p>
+          </form>
+        </section>
+
+        <section id="progress-card" class="card progress-card" aria-labelledby="progress-title" hidden>
+          <div class="card-head">
+            <h2 id="progress-title" class="card-title">下载进度</h2>
+            <span id="prog-task" class="mono muted small"></span>
+          </div>
+
+          <p id="prog-book" class="prog-book">准备中…</p>
+
+          <div id="prog-bar" class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+               aria-labelledby="progress-title">
+            <div id="prog-fill" class="bar-fill"></div>
+          </div>
+
+          <div class="prog-meta">
+            <span id="prog-count" class="mono">0 / 0</span>
+            <span id="prog-pct" class="mono prog-pct">0%</span>
+            <span id="prog-conn" class="conn-badge"></span>
+          </div>
+
+          <p id="prog-chapter" class="prog-chapter" aria-live="polite">正在连接进度通道…</p>
+
+          <!-- retry 事件的黄色行内提示：重试不算失败，成功后自动消失 -->
+          <p id="prog-retry-hint" class="retry-hint" role="status" hidden></p>
+
+          <ul id="prog-log" class="prog-log" aria-live="polite"></ul>
+
+          <div id="prog-files" class="file-links"></div>
+
+          <div class="prog-actions">
+            <button id="prog-retry" class="btn btn-outline" type="button" hidden>重试下载</button>
+            <button id="prog-close" class="btn btn-ghost" type="button">收起进度</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- 右栏：任务 + 书架 -->
+      <div class="col">
+        <section class="card" aria-labelledby="tasks-title">
+          <div class="card-head">
+            <h2 id="tasks-title" class="card-title">下载任务</h2>
+            <span id="tasks-count" class="muted small"></span>
+          </div>
+          <p id="tasks-empty" class="empty">还没有任务。在左边粘贴一个知乎链接，点「开始下载」，这里会实时显示进度。</p>
+          <ul id="tasks-list" class="tasks"></ul>
+        </section>
+
+        <section class="card" aria-labelledby="shelf-title">
+          <div class="card-head">
+            <h2 id="shelf-title" class="card-title">我的书架</h2>
+            <span id="shelf-count" class="muted small"></span>
+          </div>
+          <p id="shelf-empty" class="empty">书架还空着。下载成功后这本书会自动放进来，以后点「检查更新」就能追更新章节。</p>
+          <ul id="shelf-list" class="shelf"></ul>
+        </section>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <p class="muted small">本工具只用于把你已购买的内容备份到自己的设备，数据不离开这台电脑。</p>
+    </footer>
+  </main>
+
+  <!-- ============ 扫码登录模态 ============ -->
+  <div id="qr-modal" class="overlay" hidden>
+    <div class="overlay-backdrop" data-close-qr></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="qr-title" aria-describedby="qr-desc">
+      <button class="modal-close btn btn-icon" type="button" data-close-qr aria-label="关闭扫码登录">×</button>
+      <h2 id="qr-title" class="modal-title">扫码登录知乎</h2>
+      <p id="qr-desc" class="muted modal-desc">打开知乎 App → 点右上角「扫一扫」→ 扫描下面的二维码 → 在手机上确认。</p>
+      <div id="qr-body" class="qr-body"></div>
+      <div class="modal-actions">
+        <button id="qr-retry" class="btn btn-outline" type="button" hidden>重新获取二维码</button>
+        <button class="btn btn-ghost" type="button" data-close-qr>关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 设置抽屉 ============ -->
+  <div id="settings-drawer" class="overlay" hidden>
+    <div class="overlay-backdrop" data-close-settings></div>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="drawer-head">
+        <h2 id="settings-title" class="modal-title">设置</h2>
+        <button class="modal-close btn btn-icon" type="button" data-close-settings aria-label="关闭设置">×</button>
+      </div>
+
+      <div class="drawer-body">
+        <section class="drawer-section">
+          <h3 class="section-title">登录状态</h3>
+          <ul id="cookie-detail" class="cookie-detail" aria-live="polite"></ul>
+          <p class="field-help">签名 Cookie（d_c0）缺失时无法下载，请重新扫码或手动导入。</p>
+        </section>
+
+        <section class="drawer-section">
+          <h3 class="section-title">手动导入 Cookie</h3>
+          <p class="field-help">扫码不方便时，可以从浏览器复制 Cookie 粘贴到这里。支持三种格式：</p>
+          <ul class="format-list">
+            <li><b>原始串</b><code>k1=v1; k2=v2</code></li>
+            <li><b>JSON 对象</b><code>{"z_c0": "…"}</code></li>
+            <li><b>Netscape</b><code>cookies.txt（7 列）</code></li>
+          </ul>
+          <label class="field-label" for="cookie-input">Cookie 内容</label>
+          <textarea id="cookie-input" rows="6" spellcheck="false" placeholder="粘贴 Cookie 内容…"></textarea>
+          <button id="cookie-import-btn" class="btn btn-primary btn-block" type="button">导入并保存</button>
+          <p id="cookie-msg" class="form-msg" role="status" aria-live="polite" hidden></p>
+        </section>
+
+        <section class="drawer-section">
+          <h3 class="section-title">退出登录</h3>
+          <p class="field-help">删除本机保存的 Cookie，已下载的文件不受影响。</p>
+          <button id="logout-btn" class="btn btn-danger btn-block" type="button">退出登录</button>
+          <div id="logout-confirm" class="confirm-box" hidden>
+            <p>确定要退出登录吗？之后需要重新扫码才能下载付费章节。</p>
+            <div class="confirm-actions">
+              <button id="logout-yes" class="btn btn-danger" type="button">确定退出</button>
+              <button id="logout-no" class="btn btn-ghost" type="button">取消</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="drawer-section">
+          <h3 class="section-title">关于</h3>
+          <p class="about-line">版本：<span id="app-version" class="mono">读取中…</span></p>
+          <p class="field-help">下载的文件保存在这台电脑的 <code>~/.zhihu_downloader/output</code> 目录。</p>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <div id="toast-region" class="toasts" aria-live="polite"></div>
+
+  <noscript>
+    <p class="notice notice-warn">这个页面需要启用 JavaScript 才能使用，请在浏览器设置中允许脚本后刷新。</p>
+  </noscript>
+
+  <script src="app.js"></script>
+</body>
+</html>

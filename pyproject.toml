@@ -4,205 +4,58 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zhihu-salt-novel-downloader"
-version = "3.1.0"
-description = "知乎盐选小说下载器 - 插件化引擎 + 异步并发 + 多源支持 + 企业级架构"
+version = "5.0.0"
+description = "知乎盐选小说下载器 v5 —— 双击即用的个人备份工具：扫码登录、整本下载、断点续传、EPUB 精排、书架追更"
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
 requires-python = ">=3.10"
-authors = [
-    {name = "xfengyin", email = "xfengyin@example.com"}
-]
-keywords = ["zhihu", "salt-novel", "downloader", "ebook", "async", "cli", "plugin"]
+authors = [{ name = "xfengyin" }]
+keywords = ["zhihu", "salt", "novel", "downloader", "epub", "cli"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: End Users/Desktop",
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
     "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Topic :: Internet :: WWW/HTTP",
-    "Typing :: Typed",
 ]
 dependencies = [
-    "aiohttp>=3.9.0",
-    "beautifulsoup4>=4.12.0",
-    "click>=8.1.0",
-    "ebooklib>=0.18",
-    "lxml>=4.9.0",
-    "pyyaml>=6.0",
     "requests>=2.31.0",
-    "pillow>=10.0.0",
+    "beautifulsoup4>=4.12.0",
     "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
-    "sqlalchemy>=2.0.0",
-    "pluggy>=1.6.0",
-    "nats-py>=2.15.0",
-    "python-jose[cryptography]>=3.5.0",
-    "passlib[bcrypt]>=1.7.4",
-    "httpx>=0.28.0",
-    "python-multipart>=0.0.3",
-    "email-validator>=2.3.0",
+    "uvicorn>=0.27.0",          # 不拉 [standard]：避免 uvloop/httptools/watchfiles 等 26 包传递依赖
+    "ebooklib>=0.18",
 ]
 
 [project.optional-dependencies]
+browser = ["browser-cookie3>=0.19.0"]  # 可选：浏览器 Cookie 自动导入
 dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
-    "opentelemetry-api>=1.0.0",
-    "opentelemetry-sdk>=1.0.0",
-    "opentelemetry-instrumentation-fastapi>=0.40.0",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.0.0",
-    "opentelemetry-exporter-prometheus>=0.40.0",
-]
-web = []
-build = [
-    "pyinstaller>=6.0.0",
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",            # FastAPI TestClient 需要
+    "ruff>=0.4.0",
 ]
 
 [project.scripts]
-zhihu-downloader = "zhihu_downloader.cli:cli"
+zhihu-downloader = "zhihu_downloader.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/xfengyin/zhihu-salt-novel-downloader"
-Documentation = "https://github.com/xfengyin/zhihu-salt-novel-downloader#readme"
-Repository = "https://github.com/xfengyin/zhihu-salt-novel-downloader"
 Issues = "https://github.com/xfengyin/zhihu-salt-novel-downloader/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/zhihu_downloader"]
 
-[tool.hatch.build.targets.sdist]
-include = [
-    "/src",
-    "/README.md",
-    "/LICENSE",
-]
-
-[tool.black]
-line-length = 100
-target-version = ['py310', 'py311', 'py312']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
-
-[tool.isort]
-profile = "black"
-line-length = 100
-known_first_party = ["zhihu_downloader"]
-
-[tool.mypy]
-python_version = "3.10"
-strict = false
-warn_return_any = false
-warn_unused_configs = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = false
-disallow_untyped_decorators = false
-no_implicit_optional = false
-warn_redundant_casts = false
-warn_unused_ignores = false
-warn_no_return = false
-warn_unreachable = false
-strict_equality = false
-show_error_codes = false
-namespace_packages = false
-explicit_package_bases = false
-files = ["src/zhihu_downloader"]
-ignore_missing_imports = true
-follow_imports_for_stubs = false
+[tool.hatch.build.targets.wheel.force-include]
+"src/zhihu_downloader/app/static" = "zhihu_downloader/app/static"
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-addopts = "-v --tb=short --strict-markers"
-markers = [
-    "slow: marks tests as slow",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
-]
-
-[tool.coverage.run]
-source = ["src/zhihu_downloader"]
-branch = true
-omit = [
-    "*/tests/*",
-    "*/test_*.py",
-    "*__pycache__*",
-    "*/.venv/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-    "@abstractmethod",
-]
-show_missing = true
-skip_covered = true
+addopts = "-q --tb=short"
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-select = [
-    "E",
-    "W",
-    "F",
-    "I",
-    "B",
-    "C4",
-    "UP",
-    "RUF",
-]
-ignore = [
-    "E501",
-    "B008",
-    "C901",
-    "UP007",
-    "RUF001",
-    "RUF002",
-    "RUF003",
-]
 
-[tool.ruff.per-file-ignores]
-"__init__.py" = ["F401"]
-"tests/*" = ["F401", "F811"]
-
-[tool.uv]
-link-mode = "copy"
-
-[dependency-groups]
-dev = [
-    "types-pyyaml>=6.0.12.20260518",
-]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]

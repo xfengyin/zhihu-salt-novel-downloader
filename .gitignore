@@ -1,105 +1,25 @@
-# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-develop-eggs/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-.venv/
+.eggs/
+build/
+dist/
+*.spec.[tb]
+.venv*/
 venv/
-ENV/
-env/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Testing
+.env
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
-.tox/
-.hypothesis/
-
-# Node
-node_modules/
-web/node_modules/
-
-# Build outputs
-.web/
-dist/
-build/
-*.spec
-# 例外：项目核心 spec 文件需纳入版本控制
-!pyinstaller.spec
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Lock files
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-uv.lock
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# OS
+*.tmp
+.zhihu_state/
+cookies.json
+shelf.json
 .DS_Store
 Thumbs.db
 
-# Output
+# 本地输出与内部工作件
 output/
-*.epub
-*.txt
-*.mobi
-
-# uv
-.uv/
-
-# Shelf
-shelf.json
-
-# PyInstaller
-*.pyc
-*.pyo
-*.pyd
-*.dll
-*.exe
-*.dylib
-*.so
-
-# 前端目录豁免：web/src/lib/ 是源码（非 Python 构建产物），web/.env 是前端配置
-!web/src/lib/
-!web/.env
-
-# 构建产物
-*.zip
-*.tsbuildinfo
-web/vite.config.js
-web/vite.config.d.ts
-web/dist/
-web/src-tauri/target/
+.LEAD_FINALIZE_NOTES.md
