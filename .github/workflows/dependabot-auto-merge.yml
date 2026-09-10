@@ -47,9 +47,14 @@ jobs:
               fi
 
               checks=$(gh pr checks "$num" --repo "$REPO" --json name,bucket,state 2>/dev/null || echo '[]')
+              total=$(echo "$checks" | jq 'length')
               fail=$(echo "$checks" | jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')
               pending=$(echo "$checks" | jq '[.[] | select(.bucket == "pending")] | length')
 
+              if [ "$total" -eq 0 ]; then
+                echo "   跳过：该仓库没有任何 CI 检查，避免无验证自动合并"
+                continue
+              fi
               if [ "$fail" -gt 0 ]; then
                 echo "   跳过：有失败检查"
                 continue
