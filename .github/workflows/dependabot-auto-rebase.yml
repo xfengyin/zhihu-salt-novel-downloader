@@ -1,0 +1,47 @@
+name: Dependabot Auto Rebase
+
+# 自动化：发现与 main 冲突的 Dependabot PR，自动评论 @dependabot rebase 让其重建分支。
+# 触发：每 6 小时一次 + 手动。
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-rebase
+  cancel-in-progress: false
+
+jobs:
+  rebase:
+    name: Request rebase for conflicting Dependabot PRs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Rebase conflicting dependabot PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh pr list --repo "$REPO" --state open --limit 100 \
+            --json number,title,author,mergeable > /tmp/prs.json
+
+          jq -r '.[] | select(.author.login == "dependabot[bot]") | select(.mergeable == "CONFLICTING") | "\(.number)\t\(.title)"' /tmp/prs.json \
+          | while IFS=$'\t' read -r num title; do
+              [ -z "${num:-}" ] && continue
+              echo "PR #$num 存在冲突：$title -> 请求 @dependabot rebase"
+
+              # 避免频繁重复刷评论：最近已有 rebase 评论则跳过
+              recent=$(gh pr view "$num" --repo "$REPO" --json comments \
+                --jq '[.comments[] | select(.body | contains("@dependabot rebase"))] | length')
+              if [ "$recent" -gt 0 ]; then
+                echo "   已有 rebase 评论，跳过"
+                continue
+              fi
+
+              gh pr comment "$num" --repo "$REPO" --body "@dependabot rebase"
+            done
+          echo "== 完成 =="

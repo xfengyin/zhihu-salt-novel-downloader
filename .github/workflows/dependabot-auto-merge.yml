@@ -1,0 +1,66 @@
+name: Dependabot Auto Merge
+
+# 自动化：Dependabot PR 的 CI 全绿后自动 squash 合并并删分支。
+# 触发：
+#   1) workflow_run：CI / Gemini PR Review 跑完后立即尝试（快路径）
+#   2) schedule：每 30 分钟兜底扫描（慢路径，处理时序/漏触发）
+# 安全：仅处理 dependabot[bot] 的 PR，且要求 mergeable + 所有检查 bucket 为 pass/skipping。
+on:
+  workflow_run:
+    workflows: ["CI", "Gemini PR Review"]
+    types: [completed]
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: dependabot-auto-merge
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    name: Auto-merge green Dependabot PRs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Merge green dependabot PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "== 扫描 open 的 Dependabot PR =="
+          gh pr list --repo "$REPO" --state open --limit 100 \
+            --json number,title,author,mergeable,isDraft > /tmp/prs.json
+
+          jq -r '.[] | select(.author.login == "dependabot[bot]") | select(.isDraft == false) | "\(.number)\t\(.mergeable)\t\(.title)"' /tmp/prs.json \
+          | while IFS=$'\t' read -r num mergeable title; do
+              [ -z "${num:-}" ] && continue
+              echo "---- PR #$num ($mergeable): $title"
+              if [ "$mergeable" != "MERGEABLE" ]; then
+                echo "   跳过：当前不可合并（$mergeable）"
+                continue
+              fi
+
+              checks=$(gh pr checks "$num" --repo "$REPO" --json name,bucket,state 2>/dev/null || echo '[]')
+              fail=$(echo "$checks" | jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length')
+              pending=$(echo "$checks" | jq '[.[] | select(.bucket == "pending")] | length')
+
+              if [ "$fail" -gt 0 ]; then
+                echo "   跳过：有失败检查"
+                continue
+              fi
+              if [ "$pending" -gt 0 ]; then
+                echo "   跳过：检查仍在运行"
+                continue
+              fi
+
+              echo "   ✅ 全部检查通过，执行 squash 合并"
+              gh pr merge "$num" --repo "$REPO" --squash --delete-branch \
+                || echo "   ⚠️ 合并失败（可能已合并或存在新冲突）"
+            done
+          echo "== 完成 =="
