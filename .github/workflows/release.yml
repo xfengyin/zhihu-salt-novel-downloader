@@ -49,7 +49,7 @@ jobs:
         shell: bash
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安装 Python
         uses: actions/setup-python@v5
@@ -100,7 +100,7 @@ jobs:
         shell: bash
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安装 Python
         uses: actions/setup-python@v5
@@ -141,7 +141,7 @@ jobs:
           echo "=================================================================="
 
       - name: 上传本平台二进制（聚合 job 统一发布）
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dist-${{ matrix.platform }}
           path: dist/zhihu-downloader-*
@@ -163,10 +163,10 @@ jobs:
         shell: bash
     steps:
       - name: 检出代码（取 CHANGELOG.md）
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 下载全部平台产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: dist-*
           merge-multiple: true
@@ -215,7 +215,7 @@ jobs:
           PY
 
       - name: 发布 GitHub Release（单 tag 一次挂全部资产）
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           files: |
